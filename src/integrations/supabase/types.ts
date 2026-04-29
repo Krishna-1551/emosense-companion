@@ -14,7 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          emotion: string | null
+          id: string
+          message_length: number | null
+          risk_level: string | null
+          role: string
+          sentiment: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          emotion?: string | null
+          id?: string
+          message_length?: number | null
+          risk_level?: string | null
+          role: string
+          sentiment?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          emotion?: string | null
+          id?: string
+          message_length?: number | null
+          risk_level?: string | null
+          role?: string
+          sentiment?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mood_logs: {
+        Row: {
+          created_at: string
+          emotion: string
+          id: string
+          risk_level: string
+          sentiment: string
+          sentiment_score: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emotion: string
+          id?: string
+          risk_level: string
+          sentiment: string
+          sentiment_score?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emotion?: string
+          id?: string
+          risk_level?: string
+          sentiment?: string
+          sentiment_score?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      panic_events: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          trusted_contact_email: string | null
+          trusted_contact_name: string | null
+          trusted_contact_phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+          trusted_contact_email?: string | null
+          trusted_contact_name?: string | null
+          trusted_contact_phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          trusted_contact_email?: string | null
+          trusted_contact_name?: string | null
+          trusted_contact_phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
