@@ -28,20 +28,25 @@ const Admin = () => {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [selected, setSelected] = useState<UserRow | null>(null);
   const [timeline, setTimeline] = useState<TimelineRow[]>([]);
+  const [demo, setDemo] = useState<DemoRow[]>([]);
+  const [filterRole, setFilterRole] = useState<string>("all");
+  const [filterGender, setFilterGender] = useState<string>("all");
 
   const loadAll = async () => {
-    const [o, e, r, a, u] = await Promise.all([
+    const [o, e, r, a, u, d] = await Promise.all([
       supabase.rpc("admin_overview"),
       supabase.rpc("admin_emotion_distribution", { days: 7 }),
       supabase.rpc("admin_risk_trend", { days: 14 }),
       supabase.rpc("admin_high_risk_feed", { limit_n: 25 }),
       supabase.rpc("admin_user_list"),
+      supabase.rpc("admin_demographics"),
     ]);
     setOverview((o.data as any)?.[0] ?? null);
     setEmotions((e.data as EmotionRow[]) ?? []);
     setRisk((r.data as RiskRow[]) ?? []);
     setAlerts((a.data as AlertRow[]) ?? []);
     setUsers((u.data as UserRow[]) ?? []);
+    setDemo((d.data as DemoRow[]) ?? []);
   };
 
   useEffect(() => {
