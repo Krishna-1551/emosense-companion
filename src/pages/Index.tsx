@@ -31,6 +31,8 @@ const Index = () => {
   const [lastActivity, setLastActivity] = useState<Date>(new Date());
   const [profileChecked, setProfileChecked] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [nudgeSent, setNudgeSent] = useState(false);
+  const insight = useDismissible("emosense_insight_dismissed");
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
