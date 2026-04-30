@@ -7,7 +7,8 @@ import { PanicButton } from "@/components/PanicButton";
 import { TrustedContactDialog } from "@/components/TrustedContactDialog";
 import { MoodDashboard } from "@/components/MoodDashboard";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Send, LogOut } from "lucide-react";
+import { Sparkles, Send, LogOut, Shield } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 type Msg = {
@@ -20,7 +21,7 @@ type Msg = {
 };
 
 const Index = () => {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, isAdmin, signOut } = useAuth();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -60,38 +61,73 @@ const Index = () => {
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  // Smart, context-aware check-in
-  // - Timing adapts to recent risk/emotion (high risk → ~2 min, negative → ~4 min, neutral → 6 min, positive → 10 min)
-  // - Tone of the prompt is chosen from the user's recent emotional pattern
+  // Smart, behavior-aware check-in
+  // Signals used to choose timing AND tone:
+  //   1. Recent risk/emotion (high risk → faster check-in)
+  //   2. Response delay trend — current idle vs user's typical reply gap
+  //   3. Interaction frequency — frequent chatters get longer waits, infrequent users get earlier nudges
+  //   4. Message length drop — shorter-than-baseline replies trigger an earlier, softer check-in
   useEffect(() => {
     const pickCheckIn = () => {
-      // Look at the last several user messages for pattern
-      const recentUser = messages.filter(m => m.role === "user").slice(-5);
+      const userMsgs = messages.filter(m => m.role === "user");
+      const recentUser = userMsgs.slice(-5);
       const emotions = recentUser.map(m => (m.emotion ?? "").toLowerCase());
       const risks = recentUser.map(m => (m.risk_level ?? "").toLowerCase());
-      const avgLen = recentUser.length
-        ? recentUser.reduce((s, m) => s + m.content.length, 0) / recentUser.length
-        : 0;
+
+      // --- Behavioral signals ---
+      // Baseline reply gap (median of last 6 gaps) and current idle
+      const timed = userMsgs.filter(m => m.created_at).slice(-7);
+      const gaps: number[] = [];
+      for (let i = 1; i < timed.length; i++) {
+        gaps.push((new Date(timed[i].created_at!).getTime() - new Date(timed[i - 1].created_at!).getTime()) / 60000);
+      }
+      const sorted = [...gaps].sort((a, b) => a - b);
+      const medianGap = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+
+      // Interaction frequency: messages in last 24h
+      const dayAgo = Date.now() - 24 * 3600_000;
+      const freq24h = userMsgs.filter(m => m.created_at && new Date(m.created_at).getTime() > dayAgo).length;
+
+      // Message length drop: current avg vs prior baseline
+      const lens = recentUser.map(m => m.content.length);
+      const avgLen = lens.length ? lens.reduce((a, b) => a + b, 0) / lens.length : 0;
+      const baselineLens = userMsgs.slice(-15, -5).map(m => m.content.length);
+      const baselineAvgLen = baselineLens.length ? baselineLens.reduce((a, b) => a + b, 0) / baselineLens.length : avgLen;
+      const lengthDropped = baselineAvgLen > 30 && avgLen < baselineAvgLen * 0.5;
 
       const hasHigh = risks.includes("high");
       const hasModerate = risks.includes("moderate");
-      const dominant = emotions
-        .filter(Boolean)
-        .reduce<Record<string, number>>((acc, e) => ({ ...acc, [e]: (acc[e] ?? 0) + 1 }), {});
+      const dominant = emotions.filter(Boolean).reduce<Record<string, number>>(
+        (acc, e) => ({ ...acc, [e]: (acc[e] ?? 0) + 1 }), {}
+      );
       const top = Object.entries(dominant).sort((a, b) => b[1] - a[1])[0]?.[0];
+      const negative = ["sadness", "anxiety", "stress", "fear", "loneliness", "anger"].includes(top ?? "");
 
-      // Choose threshold (minutes of inactivity) based on emotional state
-      let thresholdMin = 6;
-      if (hasHigh) thresholdMin = 2;
-      else if (hasModerate || ["sadness", "anxiety", "stress", "fear", "loneliness", "anger"].includes(top ?? "")) thresholdMin = 4;
-      else if (top === "joy") thresholdMin = 10;
+      // --- Choose threshold (minutes of inactivity) ---
+      // Start from user's typical gap (or 6 min default)
+      let thresholdMin = medianGap ? Math.max(2, Math.min(15, medianGap * 1.5)) : 6;
 
-      // Pick tone-matched message
+      // Emotion/risk modifiers (override toward shorter)
+      if (hasHigh) thresholdMin = Math.min(thresholdMin, 2);
+      else if (hasModerate || negative) thresholdMin = Math.min(thresholdMin, 4);
+      else if (top === "joy") thresholdMin = Math.max(thresholdMin, 10);
+
+      // Frequency modifier
+      if (freq24h >= 20) thresholdMin = Math.min(15, thresholdMin * 1.3); // chatty → wait longer
+      else if (freq24h > 0 && freq24h <= 3) thresholdMin = Math.max(2, thresholdMin * 0.7); // infrequent → nudge earlier
+
+      // Length-drop modifier (withdrawal signal)
+      if (lengthDropped) thresholdMin = Math.max(2, thresholdMin * 0.6);
+
+      // --- Pick tone ---
       let content = "Just checking in 💙 — how are you holding up right now?";
-      let emotion: string = "neutral";
+      let emotion = "neutral";
       if (hasHigh) {
         content = "I'm still here with you 💙. You're not alone in this moment — would it help to talk, even just a little?";
         emotion = "stress";
+      } else if (lengthDropped && negative) {
+        content = "I notice you've been quieter than usual 🌿. No need for big words — even one feeling is enough.";
+        emotion = top ?? "neutral";
       } else if (top === "sadness") {
         content = "Thinking of you 🌙. Whatever's weighing on your heart, I'm here to listen — no pressure to be okay.";
         emotion = "sadness";
@@ -110,10 +146,8 @@ const Index = () => {
       } else if (top === "joy") {
         content = "Loved hearing from you earlier ✨ — anything else lighting you up today?";
         emotion = "joy";
-      } else if (avgLen > 0 && avgLen < 20) {
-        // Very short replies often signal withdrawal
+      } else if (lengthDropped) {
         content = "No rush at all 🌿 — even a word or two is enough. How are you, really?";
-        emotion = "neutral";
       }
 
       return { thresholdMin, content, emotion };
@@ -128,13 +162,12 @@ const Index = () => {
       const { thresholdMin, content, emotion } = pickCheckIn();
       if (idleMin < thresholdMin) return;
 
-      // Avoid stacking check-ins
-      const lastIsCheckin = /checking in|still here|thinking of you|soft check-in|pausing here|no rush/i.test(last.content);
+      const lastIsCheckin = /checking in|still here|thinking of you|soft check-in|pausing here|no rush|quieter than usual/i.test(last.content);
       if (lastIsCheckin) return;
 
       setMessages(m => [...m, { role: "assistant", content, emotion }]);
       setLastActivity(new Date());
-    }, 60_000);
+    }, 30_000);
     return () => clearInterval(t);
   }, [lastActivity, messages]);
 
