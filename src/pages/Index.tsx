@@ -208,6 +208,7 @@ const Index = () => {
     setInput("");
     setSending(true);
     setLastActivity(new Date());
+    setNudgeSent(false);
     const userMsg: Msg = { role: "user", content: text };
     setMessages(m => [...m, userMsg]);
 
