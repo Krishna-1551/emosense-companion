@@ -181,6 +181,27 @@ const Index = () => {
     return () => clearInterval(t);
   }, [lastActivity, messages]);
 
+  // Short inactivity nudge (~15s, once per idle period)
+  useEffect(() => {
+    if (nudgeSent) return;
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.role !== "assistant") return;
+    const t = setTimeout(() => {
+      const idleMs = Date.now() - lastActivity.getTime();
+      if (idleMs < 15_000) return;
+      const nudges = [
+        "Hey, take your time… I'm here whenever you're ready 🙂",
+        "No pressure — share whenever you feel comfortable.",
+        "Still here with you 💙 — no rush at all.",
+      ];
+      const pick = nudges[Math.floor(Math.random() * nudges.length)];
+      setMessages(m => [...m, { role: "assistant", content: pick, emotion: "neutral" }]);
+      setNudgeSent(true);
+    }, 15_000);
+    return () => clearTimeout(t);
+  }, [lastActivity, messages, nudgeSent]);
+
   const send = async () => {
     const text = input.trim();
     if (!text || sending) return;
