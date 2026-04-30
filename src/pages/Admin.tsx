@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, AlertTriangle, Users, MessageSquare, Activity, ArrowLeft } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend, CartesianGrid,
@@ -16,6 +17,7 @@ type RiskRow = { day: string; low: number; moderate: number; high: number };
 type AlertRow = { user_id: string; display_name: string | null; emotion: string; sentiment_score: number | null; created_at: string };
 type UserRow = { user_id: string; display_name: string | null; message_count: number; last_active: string | null; recent_high_risk: number };
 type TimelineRow = { created_at: string; emotion: string; sentiment_score: number | null; risk_level: string };
+type DemoRow = { user_id: string; display_name: string | null; age: number | null; gender: string | null; profession: string | null; profile_completed_at: string | null; created_at: string };
 
 const Admin = () => {
   const { user, loading, isAdmin, signOut } = useAuth();
