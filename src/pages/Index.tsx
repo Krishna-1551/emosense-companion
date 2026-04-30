@@ -231,6 +231,13 @@ const Index = () => {
           <PanicButton trustedContact={contact} />
         </div>
 
+        {isAdmin && (
+          <Link to="/admin" className="block">
+            <Button variant="outline" size="sm" className="w-full justify-start">
+              <Shield className="w-4 h-4 mr-2" /> Admin dashboard
+            </Button>
+          </Link>
+        )}
         <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-muted-foreground hover:text-foreground">
           <LogOut className="w-4 h-4 mr-2" /> Sign out
         </Button>
