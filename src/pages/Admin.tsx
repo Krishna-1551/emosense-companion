@@ -213,7 +213,98 @@ const Admin = () => {
         </div>
       </Card>
 
-      {/* Drill-down */}
+      {/* Demographics */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+          <h2 className="text-sm font-semibold">User demographics ({demo.filter(d => d.profile_completed_at).length} completed)</h2>
+          <div className="flex gap-2">
+            <Select value={filterRole} onValueChange={setFilterRole}>
+              <SelectTrigger className="w-44 h-8 text-xs"><SelectValue placeholder="Role" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All roles</SelectItem>
+                {["Student","Working Professional","Homemaker","Freelancer","Unemployed","Retired","Other"].map(r =>
+                  <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterGender} onValueChange={setFilterGender}>
+              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Gender" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All genders</SelectItem>
+                {["Male","Female","Prefer not to say","Other"].map(g =>
+                  <SelectItem key={g} value={g}>{g}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Counts */}
+        {(() => {
+          const filtered = demo.filter(d =>
+            (filterRole === "all" || d.profession === filterRole) &&
+            (filterGender === "all" || d.gender === filterGender)
+          );
+          const byRole: Record<string, number> = {};
+          const byGender: Record<string, number> = {};
+          filtered.forEach(d => {
+            if (d.profession) byRole[d.profession] = (byRole[d.profession] ?? 0) + 1;
+            if (d.gender) byGender[d.gender] = (byGender[d.gender] ?? 0) + 1;
+          });
+          return (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <div className="rounded-lg border border-border/50 p-3">
+                  <p className="text-xs text-muted-foreground mb-2">By role</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(byRole).length === 0 ? <span className="text-xs text-muted-foreground">—</span> :
+                      Object.entries(byRole).map(([k,v]) => (
+                        <Badge key={k} variant="secondary" className="text-[10px]">{k}: {v}</Badge>
+                      ))}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border/50 p-3">
+                  <p className="text-xs text-muted-foreground mb-2">By gender</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(byGender).length === 0 ? <span className="text-xs text-muted-foreground">—</span> :
+                      Object.entries(byGender).map(([k,v]) => (
+                        <Badge key={k} variant="secondary" className="text-[10px]">{k}: {v}</Badge>
+                      ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-muted-foreground border-b border-border/50">
+                      <th className="py-2 pr-3">Name</th>
+                      <th className="py-2 pr-3">Age</th>
+                      <th className="py-2 pr-3">Gender</th>
+                      <th className="py-2 pr-3">Role</th>
+                      <th className="py-2 pr-3">Submitted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr><td colSpan={5} className="py-4 text-center text-xs text-muted-foreground">No matching users.</td></tr>
+                    ) : filtered.map(d => (
+                      <tr key={d.user_id} className="border-b border-border/30 hover:bg-secondary/30">
+                        <td className="py-2 pr-3">{d.display_name ?? d.user_id.slice(0, 8)}</td>
+                        <td className="py-2 pr-3">{d.age ?? "—"}</td>
+                        <td className="py-2 pr-3">{d.gender ?? "—"}</td>
+                        <td className="py-2 pr-3">{d.profession ?? "—"}</td>
+                        <td className="py-2 pr-3 text-xs text-muted-foreground">
+                          {d.profile_completed_at ? new Date(d.profile_completed_at).toLocaleString() : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        })()}
+      </Card>
+
       {selected && (
         <Card className="p-4">
           <div className="flex items-center justify-between mb-3">
