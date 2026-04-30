@@ -6,6 +6,7 @@ import { MessageBubble } from "@/components/MessageBubble";
 import { PanicButton } from "@/components/PanicButton";
 import { TrustedContactDialog } from "@/components/TrustedContactDialog";
 import { MoodDashboard } from "@/components/MoodDashboard";
+import { OnboardingForm } from "@/components/OnboardingForm";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Send, LogOut, Shield } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -27,6 +28,8 @@ const Index = () => {
   const [sending, setSending] = useState(false);
   const [contact, setContact] = useState<{ name?: string | null; email?: string | null; phone?: string | null } | null>(null);
   const [lastActivity, setLastActivity] = useState<Date>(new Date());
+  const [profileChecked, setProfileChecked] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,11 +53,15 @@ const Index = () => {
   const refreshContact = async () => {
     if (!user) return;
     const { data } = await supabase.from("profiles")
-      .select("trusted_contact_name, trusted_contact_email, trusted_contact_phone")
+      .select("trusted_contact_name, trusted_contact_email, trusted_contact_phone, profile_completed_at")
       .eq("id", user.id).maybeSingle();
     setContact(data ? {
       name: data.trusted_contact_name, email: data.trusted_contact_email, phone: data.trusted_contact_phone
     } : null);
+    const localDone = user && localStorage.getItem(`emosense_onboarded_${user.id}`) === "1";
+    const done = !!data?.profile_completed_at || !!localDone;
+    setNeedsOnboarding(!done);
+    setProfileChecked(true);
   };
 
   useEffect(() => {
@@ -207,6 +214,11 @@ const Index = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading…</div>;
   if (!user) return <Navigate to="/auth" replace />;
+  if (!profileChecked) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading…</div>;
+  if (needsOnboarding) return <OnboardingForm onDone={() => {
+    if (user) localStorage.setItem(`emosense_onboarded_${user.id}`, "1");
+    setNeedsOnboarding(false);
+  }} />;
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
