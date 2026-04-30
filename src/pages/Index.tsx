@@ -60,22 +60,80 @@ const Index = () => {
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  // Smart check-in on inactivity (5 min)
+  // Smart, context-aware check-in
+  // - Timing adapts to recent risk/emotion (high risk → ~2 min, negative → ~4 min, neutral → 6 min, positive → 10 min)
+  // - Tone of the prompt is chosen from the user's recent emotional pattern
   useEffect(() => {
+    const pickCheckIn = () => {
+      // Look at the last several user messages for pattern
+      const recentUser = messages.filter(m => m.role === "user").slice(-5);
+      const emotions = recentUser.map(m => (m.emotion ?? "").toLowerCase());
+      const risks = recentUser.map(m => (m.risk_level ?? "").toLowerCase());
+      const avgLen = recentUser.length
+        ? recentUser.reduce((s, m) => s + m.content.length, 0) / recentUser.length
+        : 0;
+
+      const hasHigh = risks.includes("high");
+      const hasModerate = risks.includes("moderate");
+      const dominant = emotions
+        .filter(Boolean)
+        .reduce<Record<string, number>>((acc, e) => ({ ...acc, [e]: (acc[e] ?? 0) + 1 }), {});
+      const top = Object.entries(dominant).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+      // Choose threshold (minutes of inactivity) based on emotional state
+      let thresholdMin = 6;
+      if (hasHigh) thresholdMin = 2;
+      else if (hasModerate || ["sadness", "anxiety", "stress", "fear", "loneliness", "anger"].includes(top ?? "")) thresholdMin = 4;
+      else if (top === "joy") thresholdMin = 10;
+
+      // Pick tone-matched message
+      let content = "Just checking in 💙 — how are you holding up right now?";
+      let emotion: string = "neutral";
+      if (hasHigh) {
+        content = "I'm still here with you 💙. You're not alone in this moment — would it help to talk, even just a little?";
+        emotion = "stress";
+      } else if (top === "sadness") {
+        content = "Thinking of you 🌙. Whatever's weighing on your heart, I'm here to listen — no pressure to be okay.";
+        emotion = "sadness";
+      } else if (top === "anxiety" || top === "fear") {
+        content = "Soft check-in 🫧 — let's take one slow breath together. What's loudest in your mind right now?";
+        emotion = "anxiety";
+      } else if (top === "stress") {
+        content = "Pausing here with you ☁️. What's one small thing pressing on you most right now?";
+        emotion = "stress";
+      } else if (top === "loneliness") {
+        content = "Still here 💙. You don't have to fill the silence — I'm just keeping you company.";
+        emotion = "loneliness";
+      } else if (top === "anger") {
+        content = "I hear that something's stirred you up 🔥. Want to vent it out — no judgment from me.";
+        emotion = "anger";
+      } else if (top === "joy") {
+        content = "Loved hearing from you earlier ✨ — anything else lighting you up today?";
+        emotion = "joy";
+      } else if (avgLen > 0 && avgLen < 20) {
+        // Very short replies often signal withdrawal
+        content = "No rush at all 🌿 — even a word or two is enough. How are you, really?";
+        emotion = "neutral";
+      }
+
+      return { thresholdMin, content, emotion };
+    };
+
     const t = setInterval(() => {
       const idleMin = (Date.now() - lastActivity.getTime()) / 60000;
-      if (idleMin > 5 && messages.length > 0 && messages[messages.length - 1].role === "assistant") {
-        // Only show one check-in
-        const lastIsCheckin = messages[messages.length - 1].content.startsWith("Just checking in");
-        if (!lastIsCheckin) {
-          setMessages(m => [...m, {
-            role: "assistant",
-            content: "Just checking in 💙 — how are you holding up right now?",
-            emotion: "neutral",
-          }]);
-          setLastActivity(new Date());
-        }
-      }
+      if (messages.length === 0) return;
+      const last = messages[messages.length - 1];
+      if (last.role !== "assistant") return;
+
+      const { thresholdMin, content, emotion } = pickCheckIn();
+      if (idleMin < thresholdMin) return;
+
+      // Avoid stacking check-ins
+      const lastIsCheckin = /checking in|still here|thinking of you|soft check-in|pausing here|no rush/i.test(last.content);
+      if (lastIsCheckin) return;
+
+      setMessages(m => [...m, { role: "assistant", content, emotion }]);
+      setLastActivity(new Date());
     }, 60_000);
     return () => clearInterval(t);
   }, [lastActivity, messages]);
