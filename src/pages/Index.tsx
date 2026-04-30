@@ -310,8 +310,7 @@ const Index = () => {
           const showInsight = userMsgCount >= 4 && !insight.dismissed;
           return (
             <div className="p-3 lg:p-4 border-t border-border/50 bg-card/40 backdrop-blur space-y-3">
-              <div className="max-w-2xl mx-auto flex flex-wrap items-center justify-between gap-2">
-                <EmotionMeter level={meter} />
+              <div className="max-w-2xl mx-auto flex justify-center">
                 <PrivacyBadge />
               </div>
 
