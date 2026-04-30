@@ -100,27 +100,39 @@ export type Database = {
       }
       profiles: {
         Row: {
+          age: number | null
           created_at: string
           display_name: string | null
+          gender: string | null
           id: string
+          profession: string | null
+          profile_completed_at: string | null
           trusted_contact_email: string | null
           trusted_contact_name: string | null
           trusted_contact_phone: string | null
           updated_at: string
         }
         Insert: {
+          age?: number | null
           created_at?: string
           display_name?: string | null
+          gender?: string | null
           id: string
+          profession?: string | null
+          profile_completed_at?: string | null
           trusted_contact_email?: string | null
           trusted_contact_name?: string | null
           trusted_contact_phone?: string | null
           updated_at?: string
         }
         Update: {
+          age?: number | null
           created_at?: string
           display_name?: string | null
+          gender?: string | null
           id?: string
+          profession?: string | null
+          profile_completed_at?: string | null
           trusted_contact_email?: string | null
           trusted_contact_name?: string | null
           trusted_contact_phone?: string | null
@@ -154,6 +166,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_demographics: {
+        Args: never
+        Returns: {
+          age: number
+          created_at: string
+          display_name: string
+          gender: string
+          profession: string
+          profile_completed_at: string
+          user_id: string
+        }[]
+      }
       admin_emotion_distribution: {
         Args: { days?: number }
         Returns: {
