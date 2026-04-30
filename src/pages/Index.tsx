@@ -202,10 +202,10 @@ const Index = () => {
     return () => clearTimeout(t);
   }, [lastActivity, messages, nudgeSent]);
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (override?: string) => {
+    const text = (override ?? input).trim();
     if (!text || sending) return;
-    setInput("");
+    if (!override) setInput("");
     setSending(true);
     setLastActivity(new Date());
     setNudgeSent(false);
