@@ -304,30 +304,50 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="p-4 lg:p-6 border-t border-border/50 bg-card/40 backdrop-blur">
-          <div className="max-w-2xl mx-auto flex gap-2">
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Share what's on your mind…"
-              className="flex-1 bg-secondary/60 border border-border/50 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
-              disabled={sending}
-              maxLength={2000}
-            />
-            <button
-              onClick={send}
-              disabled={sending || !input.trim()}
-              className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center disabled:opacity-50 hover:scale-105 transition glow"
-              aria-label="Send"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-          <p className="max-w-2xl mx-auto mt-2 text-[10px] text-muted-foreground text-center">
-            EmoSense offers emotional support — it is not a medical or crisis service.
-          </p>
-        </div>
+        {(() => {
+          const meter = deriveMeter(messages.map(m => m.emotion));
+          const userMsgCount = messages.filter(m => m.role === "user").length;
+          const showInsight = userMsgCount >= 4 && !insight.dismissed;
+          return (
+            <div className="p-3 lg:p-4 border-t border-border/50 bg-card/40 backdrop-blur space-y-3">
+              <div className="max-w-2xl mx-auto flex flex-wrap items-center justify-between gap-2">
+                <EmotionMeter level={meter} />
+                <PrivacyBadge />
+              </div>
+
+              {showInsight && (
+                <InsightBubble level={meter} onDismiss={insight.dismiss} />
+              )}
+
+              <div className="max-w-2xl mx-auto">
+                <QuickEmotions onPick={(t) => send(t)} disabled={sending} />
+              </div>
+
+              <div className="max-w-2xl mx-auto flex gap-2">
+                <input
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                  placeholder="Share what's on your mind…"
+                  className="flex-1 bg-secondary/60 border border-border/50 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+                  disabled={sending}
+                  maxLength={2000}
+                />
+                <button
+                  onClick={() => send()}
+                  disabled={sending || !input.trim()}
+                  className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center disabled:opacity-50 hover:scale-105 transition glow"
+                  aria-label="Send"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="max-w-2xl mx-auto text-[10px] text-muted-foreground text-center">
+                EmoSense offers emotional support — it is not a medical or crisis service.
+              </p>
+            </div>
+          );
+        })()}
       </main>
     </div>
   );
