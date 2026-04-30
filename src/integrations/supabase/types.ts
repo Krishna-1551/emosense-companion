@@ -128,15 +128,97 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      admin_emotion_distribution: {
+        Args: { days?: number }
+        Returns: {
+          count: number
+          emotion: string
+        }[]
+      }
+      admin_high_risk_feed: {
+        Args: { limit_n?: number }
+        Returns: {
+          created_at: string
+          display_name: string
+          emotion: string
+          sentiment_score: number
+          user_id: string
+        }[]
+      }
+      admin_overview: {
+        Args: never
+        Returns: {
+          active_today: number
+          high_risk_today: number
+          total_messages: number
+          total_panic: number
+          total_users: number
+        }[]
+      }
+      admin_risk_trend: {
+        Args: { days?: number }
+        Returns: {
+          day: string
+          high: number
+          low: number
+          moderate: number
+        }[]
+      }
+      admin_user_list: {
+        Args: never
+        Returns: {
+          display_name: string
+          last_active: string
+          message_count: number
+          recent_high_risk: number
+          user_id: string
+        }[]
+      }
+      admin_user_timeline: {
+        Args: { days?: number; target: string }
+        Returns: {
+          created_at: string
+          emotion: string
+          risk_level: string
+          sentiment_score: number
+        }[]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -263,6 +345,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
