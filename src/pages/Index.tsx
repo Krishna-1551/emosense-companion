@@ -7,6 +7,7 @@ import { PanicButton } from "@/components/PanicButton";
 import { TrustedContactDialog } from "@/components/TrustedContactDialog";
 import { MoodDashboard } from "@/components/MoodDashboard";
 import { OnboardingForm } from "@/components/OnboardingForm";
+import { EmotionMeter, PrivacyBadge, QuickEmotions, InsightBubble, deriveMeter, useDismissible } from "@/components/EngagementExtras";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Send, LogOut, Shield } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -30,6 +31,8 @@ const Index = () => {
   const [lastActivity, setLastActivity] = useState<Date>(new Date());
   const [profileChecked, setProfileChecked] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [nudgeSent, setNudgeSent] = useState(false);
+  const insight = useDismissible("emosense_insight_dismissed");
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -178,12 +181,34 @@ const Index = () => {
     return () => clearInterval(t);
   }, [lastActivity, messages]);
 
-  const send = async () => {
-    const text = input.trim();
+  // Short inactivity nudge (~15s, once per idle period)
+  useEffect(() => {
+    if (nudgeSent) return;
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.role !== "assistant") return;
+    const t = setTimeout(() => {
+      const idleMs = Date.now() - lastActivity.getTime();
+      if (idleMs < 15_000) return;
+      const nudges = [
+        "Hey, take your time… I'm here whenever you're ready 🙂",
+        "No pressure — share whenever you feel comfortable.",
+        "Still here with you 💙 — no rush at all.",
+      ];
+      const pick = nudges[Math.floor(Math.random() * nudges.length)];
+      setMessages(m => [...m, { role: "assistant", content: pick, emotion: "neutral" }]);
+      setNudgeSent(true);
+    }, 15_000);
+    return () => clearTimeout(t);
+  }, [lastActivity, messages, nudgeSent]);
+
+  const send = async (override?: string) => {
+    const text = (override ?? input).trim();
     if (!text || sending) return;
-    setInput("");
+    if (!override) setInput("");
     setSending(true);
     setLastActivity(new Date());
+    setNudgeSent(false);
     const userMsg: Msg = { role: "user", content: text };
     setMessages(m => [...m, userMsg]);
 
@@ -279,30 +304,50 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="p-4 lg:p-6 border-t border-border/50 bg-card/40 backdrop-blur">
-          <div className="max-w-2xl mx-auto flex gap-2">
-            <input
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Share what's on your mind…"
-              className="flex-1 bg-secondary/60 border border-border/50 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
-              disabled={sending}
-              maxLength={2000}
-            />
-            <button
-              onClick={send}
-              disabled={sending || !input.trim()}
-              className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center disabled:opacity-50 hover:scale-105 transition glow"
-              aria-label="Send"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-          <p className="max-w-2xl mx-auto mt-2 text-[10px] text-muted-foreground text-center">
-            EmoSense offers emotional support — it is not a medical or crisis service.
-          </p>
-        </div>
+        {(() => {
+          const meter = deriveMeter(messages.map(m => m.emotion));
+          const userMsgCount = messages.filter(m => m.role === "user").length;
+          const showInsight = userMsgCount >= 4 && !insight.dismissed;
+          return (
+            <div className="p-3 lg:p-4 border-t border-border/50 bg-card/40 backdrop-blur space-y-3">
+              <div className="max-w-2xl mx-auto flex flex-wrap items-center justify-between gap-2">
+                <EmotionMeter level={meter} />
+                <PrivacyBadge />
+              </div>
+
+              {showInsight && (
+                <InsightBubble level={meter} onDismiss={insight.dismiss} />
+              )}
+
+              <div className="max-w-2xl mx-auto">
+                <QuickEmotions onPick={(t) => send(t)} disabled={sending} />
+              </div>
+
+              <div className="max-w-2xl mx-auto flex gap-2">
+                <input
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                  placeholder="Share what's on your mind…"
+                  className="flex-1 bg-secondary/60 border border-border/50 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
+                  disabled={sending}
+                  maxLength={2000}
+                />
+                <button
+                  onClick={() => send()}
+                  disabled={sending || !input.trim()}
+                  className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center disabled:opacity-50 hover:scale-105 transition glow"
+                  aria-label="Send"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="max-w-2xl mx-auto text-[10px] text-muted-foreground text-center">
+                EmoSense offers emotional support — it is not a medical or crisis service.
+              </p>
+            </div>
+          );
+        })()}
       </main>
     </div>
   );
