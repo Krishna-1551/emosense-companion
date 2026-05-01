@@ -69,7 +69,17 @@ Deno.serve(async (req) => {
       : null;
     const recentHighRisk = (recent || []).filter(r => r.risk_level === "high").length;
 
-    const behaviorContext = `Behavior: msg_length=${messageLength} chars, minutes_since_last=${delayMin ?? "N/A"}, recent_high_risk=${recentHighRisk}/10.`;
+    // Last 5 assistant replies (anti-repetition context)
+    const { data: lastAssistant } = await supabase
+      .from("messages")
+      .select("content")
+      .eq("user_id", user.id)
+      .eq("role", "assistant")
+      .order("created_at", { ascending: false })
+      .limit(5);
+    const recentReplies = (lastAssistant || []).map((r: any) => `- "${r.content}"`).join("\n");
+
+    const behaviorContext = `Behavior: msg_length=${messageLength} chars, minutes_since_last=${delayMin ?? "N/A"}, recent_high_risk=${recentHighRisk}/10.\n\nYour last replies (DO NOT repeat their phrasing or structure):\n${recentReplies || "(none yet)"}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
