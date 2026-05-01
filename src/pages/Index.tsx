@@ -7,7 +7,7 @@ import { PanicButton } from "@/components/PanicButton";
 import { TrustedContactDialog } from "@/components/TrustedContactDialog";
 import { MoodDashboard } from "@/components/MoodDashboard";
 import { OnboardingForm } from "@/components/OnboardingForm";
-import { EmotionMeter, PrivacyBadge, QuickEmotions, InsightBubble, deriveMeter, useDismissible } from "@/components/EngagementExtras";
+import { EmotionMeter, PrivacyBadge, InsightBubble, deriveMeter, useDismissible } from "@/components/EngagementExtras";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Send, LogOut, Shield } from "lucide-react";
 import { Link } from "react-router-dom";
