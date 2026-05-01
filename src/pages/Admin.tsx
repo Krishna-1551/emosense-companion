@@ -6,7 +6,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, AlertTriangle, Users, MessageSquare, Activity, ArrowLeft } from "lucide-react";
+import { Shield, AlertTriangle, Users, MessageSquare, Activity, ArrowLeft, UserPlus, MessageCircle } from "lucide-react";
+import { toast } from "sonner";
+import { SupportThread } from "@/components/SupportThread";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend, CartesianGrid,
 } from "recharts";
