@@ -195,17 +195,14 @@ const Index = () => {
     const last = messages[messages.length - 1];
     if (last.role !== "assistant") return;
 
-    // Decide IF and WHEN to nudge based on the last user emotion + risk
+    // Decide IF and WHEN to nudge based on the last user emotion + risk.
+    // Default: STAY SILENT. Only check in when there's a real emotional signal.
     const lastUser = userMsgs[userMsgs.length - 1];
     const emo = (lastUser.emotion ?? "").toLowerCase();
     const risk = (lastUser.risk_level ?? "").toLowerCase();
 
-    let delayMs: number | null = 18_000;
-    let pool: string[] = [
-      "Whenever you're ready, I'm here 🌿",
-      "No rush — take the time you need.",
-      "I'm around whenever you'd like to share more.",
-    ];
+    let delayMs: number | null = null; // silent unless a condition below triggers
+    let pool: string[] = [];
 
     if (risk === "high") {
       delayMs = 12_000;
@@ -215,31 +212,33 @@ const Index = () => {
         "Take your time. I'm not going anywhere.",
       ];
     } else if (emo === "sadness" || emo === "loneliness") {
-      delayMs = 20_000;
+      delayMs = 22_000;
       pool = [
         "Sitting quietly with you 🌙",
         "No need to fill the silence — I'm here.",
         "Whenever something comes up, I'm listening.",
       ];
     } else if (emo === "anxiety" || emo === "fear" || emo === "stress") {
-      delayMs = 18_000;
+      delayMs = 20_000;
       pool = [
         "One slow breath — I'm here whenever you're ready 🫧",
         "No pressure to find the right words.",
         "Take your time, no rush at all.",
       ];
     } else if (emo === "anger") {
-      delayMs = 25_000;
+      delayMs = 30_000;
       pool = [
         "Take the space you need — I'm here when you want to talk.",
         "No rush. Vent whenever feels right.",
       ];
-    } else if (emo === "joy") {
-      // Don't nudge happy users — feels needy and breaks their good mood
-      delayMs = null;
-    } else if (emo === "neutral" || emo === "") {
-      delayMs = 25_000; // casual chats: wait longer before any nudge
+    } else if (risk === "moderate") {
+      delayMs = 25_000;
+      pool = [
+        "Just checking in gently — I'm here whenever you're ready.",
+        "No rush. I'm around if you'd like to share more.",
+      ];
     }
+    // joy, neutral, low/empty risk → stay silent (delayMs stays null)
 
     if (delayMs === null) return;
 
