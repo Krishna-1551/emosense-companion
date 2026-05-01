@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      connect_requests: {
+        Row: {
+          admin_id: string
+          created_at: string
+          flagged_at: string | null
+          flagged_message_excerpt: string | null
+          flagged_message_id: string | null
+          id: string
+          responded_at: string | null
+          risk_level: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_id: string
+          created_at?: string
+          flagged_at?: string | null
+          flagged_message_excerpt?: string | null
+          flagged_message_id?: string | null
+          id?: string
+          responded_at?: string | null
+          risk_level?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_id?: string
+          created_at?: string
+          flagged_at?: string | null
+          flagged_message_excerpt?: string | null
+          flagged_message_id?: string | null
+          id?: string
+          responded_at?: string | null
+          risk_level?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
@@ -140,6 +179,41 @@ export type Database = {
         }
         Relationships: []
       }
+      support_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          request_id: string
+          sender_id: string
+          sender_role: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          request_id: string
+          sender_id: string
+          sender_role: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          request_id?: string
+          sender_id?: string
+          sender_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "connect_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -185,6 +259,23 @@ export type Database = {
           emotion: string
         }[]
       }
+      admin_high_risk_cases: {
+        Args: { limit_n?: number }
+        Returns: {
+          active_request_id: string
+          age: number
+          created_at: string
+          display_name: string
+          emotion: string
+          flagged_excerpt: string
+          gender: string
+          message_id: string
+          pending_request_id: string
+          profession: string
+          risk_level: string
+          user_id: string
+        }[]
+      }
       admin_high_risk_feed: {
         Args: { limit_n?: number }
         Returns: {
@@ -205,6 +296,7 @@ export type Database = {
           total_users: number
         }[]
       }
+      admin_request_connect: { Args: { _message_id: string }; Returns: string }
       admin_risk_trend: {
         Args: { days?: number }
         Returns: {
