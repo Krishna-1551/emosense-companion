@@ -186,32 +186,74 @@ const Index = () => {
     return () => clearInterval(t);
   }, [lastActivity, messages]);
 
-  // Short inactivity nudge (~15s) — ONLY after user has sent at least one message
+  // Short inactivity nudge — emotion-aware, only after user sends, max once per idle period
   useEffect(() => {
     if (nudgeSent) return;
     if (messages.length === 0) return;
-    const hasUserMessage = messages.some(m => m.role === "user");
-    if (!hasUserMessage) return; // never nudge before user initiates
+    const userMsgs = messages.filter(m => m.role === "user");
+    if (userMsgs.length === 0) return; // never nudge before user initiates
     const last = messages[messages.length - 1];
     if (last.role !== "assistant") return;
+
+    // Decide IF and WHEN to nudge based on the last user emotion + risk
+    const lastUser = userMsgs[userMsgs.length - 1];
+    const emo = (lastUser.emotion ?? "").toLowerCase();
+    const risk = (lastUser.risk_level ?? "").toLowerCase();
+
+    let delayMs: number | null = 18_000;
+    let pool: string[] = [
+      "Whenever you're ready, I'm here 🌿",
+      "No rush — take the time you need.",
+      "I'm around whenever you'd like to share more.",
+    ];
+
+    if (risk === "high") {
+      delayMs = 12_000;
+      pool = [
+        "I'm right here with you 💙 — you're not alone in this.",
+        "Still here. Even a single word is enough if that's all you have.",
+        "Take your time. I'm not going anywhere.",
+      ];
+    } else if (emo === "sadness" || emo === "loneliness") {
+      delayMs = 20_000;
+      pool = [
+        "Sitting quietly with you 🌙",
+        "No need to fill the silence — I'm here.",
+        "Whenever something comes up, I'm listening.",
+      ];
+    } else if (emo === "anxiety" || emo === "fear" || emo === "stress") {
+      delayMs = 18_000;
+      pool = [
+        "One slow breath — I'm here whenever you're ready 🫧",
+        "No pressure to find the right words.",
+        "Take your time, no rush at all.",
+      ];
+    } else if (emo === "anger") {
+      delayMs = 25_000;
+      pool = [
+        "Take the space you need — I'm here when you want to talk.",
+        "No rush. Vent whenever feels right.",
+      ];
+    } else if (emo === "joy") {
+      // Don't nudge happy users — feels needy and breaks their good mood
+      delayMs = null;
+    } else if (emo === "neutral" || emo === "") {
+      delayMs = 25_000; // casual chats: wait longer before any nudge
+    }
+
+    if (delayMs === null) return;
+
     const t = setTimeout(() => {
       const idleMs = Date.now() - lastActivity.getTime();
-      if (idleMs < 15_000) return;
-      const nudges = [
-        "Hey, take your time… I'm here whenever you're ready 🙂",
-        "No pressure — share whenever you feel comfortable.",
-        "Still here with you 💙 — no rush at all.",
-        "Whenever you're ready, I'm listening 🌿",
-        "No hurry at all — even a word is enough.",
-      ];
-      // avoid repeating any of the last 5 assistant messages
+      if (idleMs < delayMs!) return;
+
       const recentAssistant = messages.filter(m => m.role === "assistant").slice(-5).map(m => m.content);
-      const fresh = nudges.filter(n => !recentAssistant.includes(n));
-      const pool = fresh.length ? fresh : nudges;
-      const pick = pool[Math.floor(Math.random() * pool.length)];
-      setMessages(m => [...m, { role: "assistant", content: pick, emotion: "neutral" }]);
+      const fresh = pool.filter(n => !recentAssistant.includes(n));
+      const choices = fresh.length ? fresh : pool;
+      const pick = choices[Math.floor(Math.random() * choices.length)];
+      setMessages(m => [...m, { role: "assistant", content: pick, emotion: emo || "neutral" }]);
       setNudgeSent(true);
-    }, 15_000);
+    }, delayMs);
     return () => clearTimeout(t);
   }, [lastActivity, messages, nudgeSent]);
 
