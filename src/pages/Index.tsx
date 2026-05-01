@@ -181,10 +181,12 @@ const Index = () => {
     return () => clearInterval(t);
   }, [lastActivity, messages]);
 
-  // Short inactivity nudge (~15s, once per idle period)
+  // Short inactivity nudge (~15s) — ONLY after user has sent at least one message
   useEffect(() => {
     if (nudgeSent) return;
     if (messages.length === 0) return;
+    const hasUserMessage = messages.some(m => m.role === "user");
+    if (!hasUserMessage) return; // never nudge before user initiates
     const last = messages[messages.length - 1];
     if (last.role !== "assistant") return;
     const t = setTimeout(() => {
@@ -194,8 +196,14 @@ const Index = () => {
         "Hey, take your time… I'm here whenever you're ready 🙂",
         "No pressure — share whenever you feel comfortable.",
         "Still here with you 💙 — no rush at all.",
+        "Whenever you're ready, I'm listening 🌿",
+        "No hurry at all — even a word is enough.",
       ];
-      const pick = nudges[Math.floor(Math.random() * nudges.length)];
+      // avoid repeating any of the last 5 assistant messages
+      const recentAssistant = messages.filter(m => m.role === "assistant").slice(-5).map(m => m.content);
+      const fresh = nudges.filter(n => !recentAssistant.includes(n));
+      const pool = fresh.length ? fresh : nudges;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
       setMessages(m => [...m, { role: "assistant", content: pick, emotion: "neutral" }]);
       setNudgeSent(true);
     }, 15_000);
