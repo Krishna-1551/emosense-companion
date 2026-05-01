@@ -177,29 +177,77 @@ const Admin = () => {
         </Card>
       </div>
 
-      {/* High-risk alerts */}
-      <Card className="p-4">
+      {/* ⚠ High Priority Cases — privacy-safe (no full chat history) */}
+      <Card className="p-4 border-destructive/30">
         <div className="flex items-center gap-2 mb-3">
           <AlertTriangle className="w-4 h-4 text-destructive" />
-          <h2 className="text-sm font-semibold">High-risk alerts (latest)</h2>
-          <span className="ml-auto text-[10px] text-muted-foreground">live</span>
+          <h2 className="text-sm font-semibold">⚠ High Priority Cases</h2>
+          <span className="ml-auto text-[10px] text-muted-foreground">live · privacy-protected</span>
         </div>
-        {alerts.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No high-risk events. 💙</p>
+        <p className="text-[11px] text-muted-foreground mb-3">
+          Only the flagged message and basic profile are shown. Full chat history is never accessible.
+          Direct chat requires the user's explicit consent.
+        </p>
+        {highCases.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No high-priority cases right now. 💙</p>
         ) : (
-          <div className="space-y-2 max-h-72 overflow-y-auto">
-            {alerts.map((a, i) => (
-              <button
-                key={i}
-                onClick={() => setSelected(users.find(u => u.user_id === a.user_id) ?? { user_id: a.user_id, display_name: a.display_name, message_count: 0, last_active: a.created_at, recent_high_risk: 1 })}
-                className="w-full text-left flex items-center gap-3 p-2 rounded-lg bg-destructive/5 hover:bg-destructive/10 border border-destructive/20 transition"
-              >
-                <Badge variant="destructive" className="text-[10px]">HIGH</Badge>
-                <span className="text-sm font-medium truncate flex-1">{a.display_name ?? a.user_id.slice(0, 8)}</span>
-                <span className="text-xs text-muted-foreground">{a.emotion}</span>
-                <span className="text-[10px] text-muted-foreground">{new Date(a.created_at).toLocaleString()}</span>
-              </button>
-            ))}
+          <div className="space-y-3">
+            {highCases.map(c => {
+              const requested = !!c.pending_request_id;
+              const accepted = !!c.active_request_id;
+              return (
+                <div key={c.message_id} className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="destructive" className="text-[10px]">HIGH RISK</Badge>
+                    <span className="text-xs text-muted-foreground">{c.emotion}</span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">
+                      {new Date(c.created_at).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Limited profile only */}
+                  <div className="flex flex-wrap gap-1.5 text-[11px]">
+                    {c.age != null && <Badge variant="secondary">Age {c.age}</Badge>}
+                    {c.gender && <Badge variant="secondary">{c.gender}</Badge>}
+                    {c.profession && <Badge variant="secondary">{c.profession}</Badge>}
+                    <Badge variant="outline" className="font-mono">user · {c.user_id.slice(0, 8)}</Badge>
+                  </div>
+
+                  {/* Flagged message excerpt only */}
+                  <blockquote className="text-sm bg-background/60 border-l-2 border-destructive/60 pl-3 py-1.5 rounded">
+                    "{c.flagged_excerpt}"
+                  </blockquote>
+
+                  <div className="flex gap-2 flex-wrap">
+                    {accepted ? (
+                      <Button size="sm" variant="default" onClick={() => setOpenSupport(openSupport === c.active_request_id ? null : c.active_request_id!)}>
+                        <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                        {openSupport === c.active_request_id ? "Hide chat" : "Open private chat"}
+                      </Button>
+                    ) : requested ? (
+                      <Button size="sm" variant="outline" disabled>
+                        <UserPlus className="w-3.5 h-3.5 mr-1" /> Awaiting user consent…
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => requestConnect(c.message_id)}>
+                        <UserPlus className="w-3.5 h-3.5 mr-1" /> Request to Connect
+                      </Button>
+                    )}
+                  </div>
+
+                  {accepted && openSupport === c.active_request_id && user && (
+                    <SupportThread
+                      requestId={c.active_request_id!}
+                      selfRole="admin"
+                      selfId={user.id}
+                      title={`Support · ${c.display_name ?? c.user_id.slice(0,8)}`}
+                      onClose={() => setOpenSupport(null)}
+                      onEnd={() => endConnect(c.active_request_id!)}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </Card>
