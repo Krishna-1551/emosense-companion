@@ -166,11 +166,16 @@ const Index = () => {
     const t = setInterval(() => {
       const idleMin = (Date.now() - lastActivity.getTime()) / 60000;
       if (messages.length === 0) return;
+      const hasUserMessage = messages.some(m => m.role === "user");
+      if (!hasUserMessage) return;
       const last = messages[messages.length - 1];
       if (last.role !== "assistant") return;
 
       const { thresholdMin, content, emotion } = pickCheckIn();
       if (idleMin < thresholdMin) return;
+
+      const recentAssistant = messages.filter(m => m.role === "assistant").slice(-5).map(m => m.content);
+      if (recentAssistant.includes(content)) return;
 
       const lastIsCheckin = /checking in|still here|thinking of you|soft check-in|pausing here|no rush|quieter than usual/i.test(last.content);
       if (lastIsCheckin) return;
