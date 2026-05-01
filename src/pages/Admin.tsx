@@ -80,6 +80,9 @@ const Admin = () => {
       const ch = supabase
         .channel("admin-mood")
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "mood_logs" }, loadAll)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: "risk_level=eq.high" },
+          (payload) => { loadAll(); toast.warning("⚠ New high-risk message detected", { duration: 6000 }); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "connect_requests" }, loadAll)
         .subscribe();
       return () => { supabase.removeChannel(ch); };
     }
