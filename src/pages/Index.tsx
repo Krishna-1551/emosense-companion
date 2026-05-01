@@ -373,9 +373,6 @@ const Index = () => {
                 <InsightBubble level={meter} onDismiss={insight.dismiss} />
               )}
 
-              <div className="max-w-2xl mx-auto">
-                <QuickEmotions onPick={(t) => send(t)} disabled={sending} />
-              </div>
 
               <div className="max-w-2xl mx-auto flex gap-2">
                 <input
