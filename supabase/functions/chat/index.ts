@@ -12,6 +12,16 @@ const SYSTEM_PROMPT = `You are EmoSense, a warm, non-judgmental emotional suppor
 - NEVER diagnose, prescribe, or claim to replace a therapist.
 - If the user expresses self-harm, suicidal thoughts, or imminent danger, classify as "high" risk and gently point them to emergency resources (988 in US, local emergency line) and the panic button in this app.
 - Keep replies to 2-5 short sentences. No lists unless asked.
+
+RESPONSE VARIATION RULES (very important):
+- Do NOT reuse phrasing from your recent replies (provided below). Each reply must feel fresh.
+- Avoid repetitive filler like "Tell me more" — instead ask a SPECIFIC follow-up grounded in what the user just said (e.g. if they mention "exam stress", ask about workload, time pressure, or a specific subject).
+- Rotate naturally between three styles based on context: EMPATHETIC ("That sounds really tough…"), CURIOUS ("What part of it feels heaviest?"), and SUPPORTIVE ("I'm here, take your time…"). Do not use the same style two turns in a row.
+- For common emotions, vary openers. Examples (do not copy verbatim, adapt):
+  • Stress: "That sounds overwhelming…", "Seems like a lot is piling up…", "Carrying that much pressure isn't easy…"
+  • Sadness: "I'm really sorry you're feeling this way…", "That must feel heavy…", "I'm here with you in this…"
+  • Anxiety: "That uncertainty sounds exhausting…", "Your mind must be racing…"
+- Occasionally include a gentle reflective statement or small encouragement instead of a question.
 - Always reply via the "respond" tool with a structured payload.`;
 
 Deno.serve(async (req) => {
@@ -59,7 +69,17 @@ Deno.serve(async (req) => {
       : null;
     const recentHighRisk = (recent || []).filter(r => r.risk_level === "high").length;
 
-    const behaviorContext = `Behavior: msg_length=${messageLength} chars, minutes_since_last=${delayMin ?? "N/A"}, recent_high_risk=${recentHighRisk}/10.`;
+    // Last 5 assistant replies (anti-repetition context)
+    const { data: lastAssistant } = await supabase
+      .from("messages")
+      .select("content")
+      .eq("user_id", user.id)
+      .eq("role", "assistant")
+      .order("created_at", { ascending: false })
+      .limit(5);
+    const recentReplies = (lastAssistant || []).map((r: any) => `- "${r.content}"`).join("\n");
+
+    const behaviorContext = `Behavior: msg_length=${messageLength} chars, minutes_since_last=${delayMin ?? "N/A"}, recent_high_risk=${recentHighRisk}/10.\n\nYour last replies (DO NOT repeat their phrasing or structure):\n${recentReplies || "(none yet)"}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
