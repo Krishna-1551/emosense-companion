@@ -58,16 +58,21 @@ Deno.serve(async (req) => {
     const messageLength = message.length;
     const { data: recent } = await supabase
       .from("messages")
-      .select("created_at, risk_level")
+      .select("created_at, risk_level, sentiment, role")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(10);
 
-    const lastUserAt = recent?.[0]?.created_at;
-    const delayMin = lastUserAt
-      ? Math.round((Date.now() - new Date(lastUserAt).getTime()) / 60000)
+    const lastUserAt = recent?.find(r => r.role === "user")?.created_at;
+    const responseDelaySec = lastUserAt
+      ? Math.round((Date.now() - new Date(lastUserAt).getTime()) / 1000)
       : null;
+    const delayMin = responseDelaySec != null ? Math.round(responseDelaySec / 60) : null;
     const recentHighRisk = (recent || []).filter(r => r.risk_level === "high").length;
+
+    // Repeated negative sentiment pattern (last 3 user messages)
+    const lastUserSentiments = (recent || []).filter(r => r.role === "user").slice(0, 3).map(r => r.sentiment);
+    const repeatedNegative = lastUserSentiments.length >= 3 && lastUserSentiments.every(s => s === "negative");
 
     // Last 5 assistant replies (anti-repetition context)
     const { data: lastAssistant } = await supabase
@@ -79,7 +84,16 @@ Deno.serve(async (req) => {
       .limit(5);
     const recentReplies = (lastAssistant || []).map((r: any) => `- "${r.content}"`).join("\n");
 
-    const behaviorContext = `Behavior: msg_length=${messageLength} chars, minutes_since_last=${delayMin ?? "N/A"}, recent_high_risk=${recentHighRisk}/10.\n\nYour last replies (DO NOT repeat their phrasing or structure):\n${recentReplies || "(none yet)"}`;
+    const shortReply = messageLength > 0 && messageLength < 15;
+    const longPause = (delayMin ?? 0) > 10;
+    const behaviorContext = `Behavior signals:
+- msg_length=${messageLength} chars ${shortReply ? "(SHORT — be extra gentle, don't push for details)" : ""}
+- minutes_since_last=${delayMin ?? "N/A"} ${longPause ? "(LONG PAUSE — softly welcome them back)" : ""}
+- recent_high_risk=${recentHighRisk}/10
+- repeated_negative_pattern=${repeatedNegative ? "YES (last 3 messages all negative — acknowledge the weight, don't be falsely cheerful)" : "no"}
+
+Your last replies (DO NOT repeat their phrasing or structure):
+${recentReplies || "(none yet)"}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
@@ -135,10 +149,26 @@ Deno.serve(async (req) => {
     const args = toolCall ? JSON.parse(toolCall.function.arguments) : null;
     if (!args) throw new Error("No structured response");
 
+    // --- Safety net: keyword + pattern-based high-risk override ---
+    // The AI is the primary detector; this is a backstop in case it under-classifies.
+    const HIGH_RISK_PATTERNS = [
+      /\bsuicid\w*/i, /\bkill (myself|me)\b/i, /\bend (it|my life|everything)\b/i,
+      /\bdon'?t want to (live|be here|exist)\b/i, /\bno reason to (live|go on)\b/i,
+      /\bhurt myself\b/i, /\bself[- ]?harm\b/i, /\bcut myself\b/i,
+      /\bhopeless\b/i, /\bworthless\b/i, /\bcan'?t (go on|do this anymore|take it)\b/i,
+      /\bgive up\b/i, /\bnobody (cares|would miss)\b/i, /\boverdose\b/i,
+    ];
+    const keywordHighRisk = HIGH_RISK_PATTERNS.some(p => p.test(message));
+    if (keywordHighRisk) args.risk_level = "high";
+
+    // Repeated negative pattern → escalate at least to moderate
+    if (repeatedNegative && args.risk_level === "low") args.risk_level = "moderate";
+
     // Save both messages + mood log
     await supabase.from("messages").insert([
       { user_id: user.id, role: "user", content: message, message_length: messageLength,
-        emotion: args.emotion, sentiment: args.sentiment, risk_level: args.risk_level },
+        emotion: args.emotion, sentiment: args.sentiment, risk_level: args.risk_level,
+        response_delay_seconds: responseDelaySec },
       { user_id: user.id, role: "assistant", content: args.reply, message_length: args.reply.length },
     ]);
     await supabase.from("mood_logs").insert({

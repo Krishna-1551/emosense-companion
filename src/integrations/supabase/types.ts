@@ -60,6 +60,7 @@ export type Database = {
           emotion: string | null
           id: string
           message_length: number | null
+          response_delay_seconds: number | null
           risk_level: string | null
           role: string
           sentiment: string | null
@@ -71,6 +72,7 @@ export type Database = {
           emotion?: string | null
           id?: string
           message_length?: number | null
+          response_delay_seconds?: number | null
           risk_level?: string | null
           role: string
           sentiment?: string | null
@@ -82,6 +84,7 @@ export type Database = {
           emotion?: string | null
           id?: string
           message_length?: number | null
+          response_delay_seconds?: number | null
           risk_level?: string | null
           role?: string
           sentiment?: string | null
