@@ -84,7 +84,16 @@ Deno.serve(async (req) => {
       .limit(5);
     const recentReplies = (lastAssistant || []).map((r: any) => `- "${r.content}"`).join("\n");
 
-    const behaviorContext = `Behavior: msg_length=${messageLength} chars, minutes_since_last=${delayMin ?? "N/A"}, recent_high_risk=${recentHighRisk}/10.\n\nYour last replies (DO NOT repeat their phrasing or structure):\n${recentReplies || "(none yet)"}`;
+    const shortReply = messageLength > 0 && messageLength < 15;
+    const longPause = (delayMin ?? 0) > 10;
+    const behaviorContext = `Behavior signals:
+- msg_length=${messageLength} chars ${shortReply ? "(SHORT — be extra gentle, don't push for details)" : ""}
+- minutes_since_last=${delayMin ?? "N/A"} ${longPause ? "(LONG PAUSE — softly welcome them back)" : ""}
+- recent_high_risk=${recentHighRisk}/10
+- repeated_negative_pattern=${repeatedNegative ? "YES (last 3 messages all negative — acknowledge the weight, don't be falsely cheerful)" : "no"}
+
+Your last replies (DO NOT repeat their phrasing or structure):
+${recentReplies || "(none yet)"}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
