@@ -58,16 +58,21 @@ Deno.serve(async (req) => {
     const messageLength = message.length;
     const { data: recent } = await supabase
       .from("messages")
-      .select("created_at, risk_level")
+      .select("created_at, risk_level, sentiment, role")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(10);
 
-    const lastUserAt = recent?.[0]?.created_at;
-    const delayMin = lastUserAt
-      ? Math.round((Date.now() - new Date(lastUserAt).getTime()) / 60000)
+    const lastUserAt = recent?.find(r => r.role === "user")?.created_at;
+    const responseDelaySec = lastUserAt
+      ? Math.round((Date.now() - new Date(lastUserAt).getTime()) / 1000)
       : null;
+    const delayMin = responseDelaySec != null ? Math.round(responseDelaySec / 60) : null;
     const recentHighRisk = (recent || []).filter(r => r.risk_level === "high").length;
+
+    // Repeated negative sentiment pattern (last 3 user messages)
+    const lastUserSentiments = (recent || []).filter(r => r.role === "user").slice(0, 3).map(r => r.sentiment);
+    const repeatedNegative = lastUserSentiments.length >= 3 && lastUserSentiments.every(s => s === "negative");
 
     // Last 5 assistant replies (anti-repetition context)
     const { data: lastAssistant } = await supabase
