@@ -58,8 +58,11 @@ export type Database = {
           content: string
           created_at: string
           emotion: string | null
+          follow_up_sent_at: string | null
           id: string
           message_length: number | null
+          resolved_at: string | null
+          resolved_by: string | null
           response_delay_seconds: number | null
           risk_level: string | null
           role: string
@@ -70,8 +73,11 @@ export type Database = {
           content: string
           created_at?: string
           emotion?: string | null
+          follow_up_sent_at?: string | null
           id?: string
           message_length?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           response_delay_seconds?: number | null
           risk_level?: string | null
           role: string
@@ -82,8 +88,11 @@ export type Database = {
           content?: string
           created_at?: string
           emotion?: string | null
+          follow_up_sent_at?: string | null
           id?: string
           message_length?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           response_delay_seconds?: number | null
           risk_level?: string | null
           role?: string
@@ -243,6 +252,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_behavior_flags: {
+        Args: never
+        Returns: {
+          detail: string
+          display_name: string
+          flag: string
+          last_active: string
+          user_id: string
+        }[]
+      }
       admin_demographics: {
         Args: never
         Returns: {
@@ -262,6 +281,15 @@ export type Database = {
           emotion: string
         }[]
       }
+      admin_emotion_insights: {
+        Args: never
+        Returns: {
+          emotion: string
+          last_week: number
+          pct_change: number
+          this_week: number
+        }[]
+      }
       admin_high_risk_cases: {
         Args: { limit_n?: number }
         Returns: {
@@ -271,12 +299,17 @@ export type Database = {
           display_name: string
           emotion: string
           flagged_excerpt: string
+          follow_up_sent_at: string
           gender: string
           message_id: string
           pending_request_id: string
           profession: string
+          resolved_at: string
           risk_level: string
+          sentiment_score: number
           user_id: string
+          user_last_message_at: string
+          user_message_count_24h: number
         }[]
       }
       admin_high_risk_feed: {
@@ -288,6 +321,10 @@ export type Database = {
           sentiment_score: number
           user_id: string
         }[]
+      }
+      admin_mark_case: {
+        Args: { _action: string; _message_id: string }
+        Returns: undefined
       }
       admin_overview: {
         Args: never
