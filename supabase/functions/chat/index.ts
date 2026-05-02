@@ -140,10 +140,26 @@ Deno.serve(async (req) => {
     const args = toolCall ? JSON.parse(toolCall.function.arguments) : null;
     if (!args) throw new Error("No structured response");
 
+    // --- Safety net: keyword + pattern-based high-risk override ---
+    // The AI is the primary detector; this is a backstop in case it under-classifies.
+    const HIGH_RISK_PATTERNS = [
+      /\bsuicid\w*/i, /\bkill (myself|me)\b/i, /\bend (it|my life|everything)\b/i,
+      /\bdon'?t want to (live|be here|exist)\b/i, /\bno reason to (live|go on)\b/i,
+      /\bhurt myself\b/i, /\bself[- ]?harm\b/i, /\bcut myself\b/i,
+      /\bhopeless\b/i, /\bworthless\b/i, /\bcan'?t (go on|do this anymore|take it)\b/i,
+      /\bgive up\b/i, /\bnobody (cares|would miss)\b/i, /\boverdose\b/i,
+    ];
+    const keywordHighRisk = HIGH_RISK_PATTERNS.some(p => p.test(message));
+    if (keywordHighRisk) args.risk_level = "high";
+
+    // Repeated negative pattern → escalate at least to moderate
+    if (repeatedNegative && args.risk_level === "low") args.risk_level = "moderate";
+
     // Save both messages + mood log
     await supabase.from("messages").insert([
       { user_id: user.id, role: "user", content: message, message_length: messageLength,
-        emotion: args.emotion, sentiment: args.sentiment, risk_level: args.risk_level },
+        emotion: args.emotion, sentiment: args.sentiment, risk_level: args.risk_level,
+        response_delay_seconds: responseDelaySec },
       { user_id: user.id, role: "assistant", content: args.reply, message_length: args.reply.length },
     ]);
     await supabase.from("mood_logs").insert({
