@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SupportThread } from "@/components/SupportThread";
+import { AdminMoodTimeline } from "@/components/AdminMoodTimeline";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend, CartesianGrid, ReferenceDot,
 } from "recharts";
@@ -674,40 +675,11 @@ const Admin = () => {
       </Card>
 
       {selected && (
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">
-              Mood timeline — {selected.display_name ?? selected.user_id.slice(0, 8)} (30 days)
-            </h2>
-            <Button size="sm" variant="ghost" onClick={() => setSelected(null)}>Close</Button>
-          </div>
-          {timeline.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No mood data for this user.</p>
-          ) : (
-            <>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={timeline.map(t => ({
-                  time: new Date(t.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-                  score: Number(t.sentiment_score ?? 0),
-                }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                  <YAxis domain={[-1, 1]} stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }} />
-                  <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-              <div className="mt-3 flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                {timeline.slice(-30).reverse().map((t, i) => (
-                  <span key={i} className="text-[10px] px-2 py-1 rounded-full bg-secondary/60 border border-border/50">
-                    {new Date(t.created_at).toLocaleDateString()} · {t.emotion} ·{" "}
-                    <span className={t.risk_level === "high" ? "text-destructive font-semibold" : ""}>{t.risk_level}</span>
-                  </span>
-                ))}
-              </div>
-            </>
-          )}
-        </Card>
+        <AdminMoodTimeline
+          userId={selected.user_id}
+          displayName={selected.display_name ?? selected.user_id.slice(0, 8)}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   );
