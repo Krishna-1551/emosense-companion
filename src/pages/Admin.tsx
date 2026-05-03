@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SupportThread } from "@/components/SupportThread";
+import { AdminMoodTimeline } from "@/components/AdminMoodTimeline";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend, CartesianGrid, ReferenceDot,
 } from "recharts";
