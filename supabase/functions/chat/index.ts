@@ -104,15 +104,42 @@ Deno.serve(async (req) => {
       .limit(5);
     const recentReplies = (lastAssistant || []).map((r: any) => `- "${r.content}"`).join("\n");
 
+    // User profile for personalization
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, age, gender, profession")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    // Style rotation: pick a style different from the one inferred from the last assistant reply
+    const STYLES = ["EMPATHETIC", "CURIOUS", "REFLECTIVE", "ENCOURAGING"];
+    const lastReply = (lastAssistant?.[0] as any)?.content?.toLowerCase() ?? "";
+    let lastStyle = "";
+    if (/\?$/m.test(lastReply) || /what|how|when|which|where/.test(lastReply)) lastStyle = "CURIOUS";
+    else if (/strength|proud|brave|courage|you can|capable/.test(lastReply)) lastStyle = "ENCOURAGING";
+    else if (/sounds like|seems like|i notice|building/.test(lastReply)) lastStyle = "REFLECTIVE";
+    else if (lastReply) lastStyle = "EMPATHETIC";
+    const available = STYLES.filter(s => s !== lastStyle);
+    const suggestedStyle = available[Math.floor(Math.random() * available.length)];
+
+    const isLongMessage = messageLength > 160;
     const shortReply = messageLength > 0 && messageLength < 15;
     const longPause = (delayMin ?? 0) > 10;
-    const behaviorContext = `Behavior signals:
-- msg_length=${messageLength} chars ${shortReply ? "(SHORT — be extra gentle, don't push for details)" : ""}
-- minutes_since_last=${delayMin ?? "N/A"} ${longPause ? "(LONG PAUSE — softly welcome them back)" : ""}
+    const behaviorContext = `User profile (use for personalized suggestions, do not mention you have it):
+- name=${profile?.display_name ?? "unknown"}
+- age=${profile?.age ?? "unknown"}
+- gender=${profile?.gender ?? "unknown"}
+- profession=${profile?.profession ?? "unknown"}
+
+Behavior signals:
+- msg_length=${messageLength} chars ${shortReply ? "(SHORT — be extra gentle, ask one easy question)" : ""}${isLongMessage ? "(LONG emotional message — reflect 1-2 specific details they shared, deeper empathy)" : ""}
+- minutes_since_last=${delayMin ?? "N/A"} ${longPause ? "(LONG PAUSE — softly welcome them back, no guilt)" : ""}
 - recent_high_risk=${recentHighRisk}/10
 - repeated_negative_pattern=${repeatedNegative ? "YES (last 3 messages all negative — acknowledge the weight, don't be falsely cheerful)" : "no"}
 
-Your last replies (DO NOT repeat their phrasing or structure):
+Style for THIS reply: ${suggestedStyle} (last reply was ${lastStyle || "n/a"} — do not repeat that style).
+
+Your last replies (DO NOT repeat their openers, sentence patterns, or closing questions):
 ${recentReplies || "(none yet)"}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
