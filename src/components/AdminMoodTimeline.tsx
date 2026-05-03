@@ -41,8 +41,10 @@ export const AdminMoodTimeline = ({ userId, displayName, onClose }: Props) => {
   useEffect(() => {
     setLoading(true);
     supabase.rpc("admin_user_timeline", { target: userId, days: WIN_DAYS[win] })
-      .then(({ data }) => setRows((data as TimelineRow[]) ?? []))
-      .finally(() => setLoading(false));
+      .then(({ data }) => {
+        setRows((data as TimelineRow[]) ?? []);
+        setLoading(false);
+      });
   }, [userId, win]);
 
   const chartData = useMemo(() => {
