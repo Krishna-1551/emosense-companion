@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
+import emosenseLogo from "@/assets/emosense-logo.png";
 
 const schema = z.object({
   email: z.string().trim().email("Enter a valid email").max(255),
@@ -60,8 +60,8 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center p-6">
       <Card className="w-full max-w-md p-8 soft-shadow border-border/50 bg-card/70 backdrop-blur-xl">
         <div className="flex flex-col items-center mb-8">
-          <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center pulse-ring">
-            <Sparkles className="w-7 h-7 text-primary-foreground" />
+          <div className="relative w-20 h-20 rounded-full overflow-hidden pulse-ring">
+            <img src={emosenseLogo} alt="EmoSense AI logo" className="w-full h-full object-cover" />
           </div>
           <h1 className="mt-4 text-3xl font-semibold tracking-tight">
             <span className="gradient-text">EmoSense AI</span>
