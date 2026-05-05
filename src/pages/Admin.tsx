@@ -152,7 +152,14 @@ const Admin = () => {
         .on("postgres_changes", { event: "*", schema: "public", table: "connect_requests" }, loadAll)
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, loadAll)
         .subscribe();
-      return () => { supabase.removeChannel(ch); };
+      const refresh = setInterval(() => { loadAll(); }, 15000);
+      const onVis = () => { if (document.visibilityState === "visible") loadAll(); };
+      document.addEventListener("visibilitychange", onVis);
+      return () => {
+        supabase.removeChannel(ch);
+        clearInterval(refresh);
+        document.removeEventListener("visibilitychange", onVis);
+      };
     }
   }, [isAdmin]);
 
