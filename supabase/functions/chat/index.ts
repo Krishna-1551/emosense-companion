@@ -232,42 +232,57 @@ ${bannedBlock}`;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT + "\n" + behaviorContext },
-          ...history.slice(-10).map((m: any) => ({ role: m.role, content: m.content })),
-          { role: "user", content: message },
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "respond",
-            description: "Reply with supportive text plus emotion analysis.",
-            parameters: {
-              type: "object",
-              properties: {
-                reply: { type: "string", description: "Supportive reply (2-5 short sentences)." },
-                emotion: { type: "string", enum: ["neutral","stress","anxiety","sadness","anger","joy","fear","loneliness"] },
-                sentiment: { type: "string", enum: ["positive","neutral","negative"] },
-                sentiment_score: { type: "number", description: "-1.0 (very negative) to 1.0 (very positive)" },
-                risk_level: { type: "string", enum: ["low","moderate","high"] },
+    const callAI = async (extraSystem = "") => {
+      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT + "\n" + behaviorContext + (extraSystem ? "\n" + extraSystem : "") },
+            ...history.slice(-10).map((m: any) => ({ role: m.role, content: m.content })),
+            { role: "user", content: message },
+          ],
+          tools: [{
+            type: "function",
+            function: {
+              name: "respond",
+              description: "Reply with supportive text plus emotion analysis.",
+              parameters: {
+                type: "object",
+                properties: {
+                  reply: { type: "string", description: "Supportive reply (2-5 short sentences)." },
+                  emotion: { type: "string", enum: ["neutral","stress","anxiety","sadness","anger","joy","fear","loneliness"] },
+                  sentiment: { type: "string", enum: ["positive","neutral","negative"] },
+                  sentiment_score: { type: "number", description: "-1.0 (very negative) to 1.0 (very positive)" },
+                  risk_level: { type: "string", enum: ["low","moderate","high"] },
+                },
+                required: ["reply","emotion","sentiment","sentiment_score","risk_level"],
+                additionalProperties: false,
               },
-              required: ["reply","emotion","sentiment","sentiment_score","risk_level"],
-              additionalProperties: false,
             },
-          },
-        }],
-        tool_choice: { type: "function", function: { name: "respond" } },
-      }),
-    });
+          }],
+          tool_choice: { type: "function", function: { name: "respond" } },
+        }),
+      });
+      return resp;
+    };
 
+    // Detect repetition against recent assistant replies
+    const detectRepetition = (reply: string): string[] => {
+      const r = norm(reply);
+      const rOpener = openerOf(reply);
+      const issues: string[] = [];
+      if (rOpener && recentOpeners.slice(0, 3).some(o => o && (o === rOpener || o.startsWith(rOpener) || rOpener.startsWith(o)))) {
+        issues.push(`opener "${rOpener}…" was used in a recent reply`);
+      }
+      for (const p of usedReassurances) {
+        if (r.includes(p)) issues.push(`phrase "${p}" was used in a recent reply`);
+      }
+      return issues;
+    };
+
+    let aiResp = await callAI();
     if (!aiResp.ok) {
       const errText = await aiResp.text();
       console.error("AI error", aiResp.status, errText);
@@ -278,10 +293,28 @@ ${bannedBlock}`;
       throw new Error("AI gateway failed");
     }
 
-    const aiData = await aiResp.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    const args = toolCall ? JSON.parse(toolCall.function.arguments) : null;
+    let aiData = await aiResp.json();
+    let toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+    let args = toolCall ? JSON.parse(toolCall.function.arguments) : null;
     if (!args) throw new Error("No structured response");
+
+    // Server-side repetition guard: retry once with stricter instruction if repeated
+    let issues = detectRepetition(args.reply);
+    if (issues.length > 0) {
+      console.log("Repetition detected, retrying:", issues);
+      const strict = `STRICT REWRITE: Your previous draft repeated recent content (${issues.join("; ")}). Rewrite the reply with a COMPLETELY DIFFERENT opening sentence and DIFFERENT reassurance wording. Do not use any of the BANNED openers/phrases above. Keep the same warmth, tone, and language style.`;
+      const retry = await callAI(strict);
+      if (retry.ok) {
+        const retryData = await retry.json();
+        const retryCall = retryData.choices?.[0]?.message?.tool_calls?.[0];
+        const retryArgs = retryCall ? JSON.parse(retryCall.function.arguments) : null;
+        if (retryArgs?.reply) {
+          const retryIssues = detectRepetition(retryArgs.reply);
+          if (retryIssues.length < issues.length) args = retryArgs;
+        }
+      }
+    }
+
 
     // --- Safety net: keyword + pattern-based high-risk override ---
     // The AI is the primary detector; this is a backstop in case it under-classifies.
