@@ -164,6 +164,31 @@ Deno.serve(async (req) => {
       .limit(5);
     const recentReplies = (lastAssistant || []).map((r: any) => `- "${r.content}"`).join("\n");
 
+    // --- Phrase-repetition detection ---
+    const REASSURANCE_PHRASES = [
+      "aap theek ho jayenge","sab theek ho jayega","yeh phase temporary hai","aap akela feel na karein",
+      "aap akele nahi hain","main yahin hoon","main samajh sakta hoon","samajh sakta hoon",
+      "lagta hai aap kaafi pressure","yeh kaafi heavy","kaafi heavy lag raha hai",
+      "i understand how you feel","i'm here for you","im here for you","everything will be fine",
+      "stay positive","tell me more","that sounds tough","that must be really tough",
+      "yaar ye toh genuinely tough","kaafi kuch ek saath chal raha hai","thoda better feel",
+    ];
+    const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+    const openerOf = (s: string) => norm(s).split(" ").slice(0, 8).join(" ");
+    const recentNorm = (lastAssistant || []).map((r: any) => norm(r.content || ""));
+    const recentOpeners = (lastAssistant || []).map((r: any) => openerOf(r.content || ""));
+    const usedReassurances = new Set<string>();
+    for (const txt of recentNorm) {
+      for (const p of REASSURANCE_PHRASES) if (txt.includes(p)) usedReassurances.add(p);
+    }
+    const bannedForThisTurn = [
+      ...recentOpeners.slice(0, 3).filter(Boolean).map(o => `OPENER: "${o}…"`),
+      ...Array.from(usedReassurances).map(p => `PHRASE: "${p}"`),
+    ];
+    const bannedBlock = bannedForThisTurn.length
+      ? `BANNED in this reply (used recently — do NOT reuse, rephrase with different wording):\n${bannedForThisTurn.join("\n")}`
+      : "BANNED in this reply: (none yet)";
+
     // User profile for personalization
     const { data: profile } = await supabase
       .from("profiles")
