@@ -225,7 +225,9 @@ Behavior signals:
 Style for THIS reply: ${suggestedStyle} (last reply was ${lastStyle || "n/a"} — do not repeat that style).
 
 Your last replies (DO NOT repeat their openers, sentence patterns, or closing questions):
-${recentReplies || "(none yet)"}`;
+${recentReplies || "(none yet)"}
+
+${bannedBlock}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
