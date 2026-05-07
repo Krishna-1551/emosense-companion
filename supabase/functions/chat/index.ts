@@ -232,6 +232,72 @@ Deno.serve(async (req) => {
       return "hinglish";
     };
     const userLang = detectLang(message);
+
+    // --- Time-Aware Conversation Context ---
+    // Derive gap category, time-of-day, new-day flag, last emotion + topic snippet
+    // from the user's most recent prior user message. Purely contextual — no new tables.
+    const { data: lastUserMsgRow } = await supabase
+      .from("messages")
+      .select("created_at, emotion, content")
+      .eq("user_id", user.id)
+      .eq("role", "user")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let timeAwareBlock = "TIME CONTEXT: This appears to be the user's first message — greet warmly and openly, no reconnection phrasing.";
+    if (lastUserMsgRow?.created_at) {
+      const lastTs = new Date(lastUserMsgRow.created_at);
+      const now = new Date();
+      const gapMin = (now.getTime() - lastTs.getTime()) / 60000;
+      const gapHr = gapMin / 60;
+      const gapDays = gapHr / 24;
+
+      let gapCategory: "short" | "few_hours" | "overnight" | "multi_day" | "long_absence";
+      if (gapMin < 30) gapCategory = "short";
+      else if (gapHr < 6) gapCategory = "few_hours";
+      else if (gapHr < 36 && lastTs.toDateString() !== now.toDateString()) gapCategory = "overnight";
+      else if (gapDays < 7) gapCategory = "multi_day";
+      else gapCategory = "long_absence";
+
+      const hour = now.getHours();
+      let timeOfDay: string;
+      if (hour >= 5 && hour < 12) timeOfDay = "morning";
+      else if (hour >= 12 && hour < 17) timeOfDay = "afternoon";
+      else if (hour >= 17 && hour < 22) timeOfDay = "evening";
+      else timeOfDay = "late_night";
+
+      const isNewDay = lastTs.toDateString() !== now.toDateString();
+      const lastEmotion = (lastUserMsgRow.emotion ?? "unknown") as string;
+      const lastTopic = (lastUserMsgRow.content || "").slice(0, 120).replace(/\s+/g, " ").trim();
+
+      const guidanceByGap: Record<string, string> = {
+        short: "SHORT GAP (<30 min) → continue the conversation naturally, NO greeting/reconnection phrase. Pick up where it left off.",
+        few_hours: "FEW HOURS gap → soft, brief reconnection (e.g. 'Welcome back…', 'Hey, ab thoda better feel ho raha hai?'). One short line, then continue.",
+        overnight: "OVERNIGHT / NEW DAY → acknowledge the new day naturally based on time-of-day. If user was distressed last time, gently reference it ONCE (e.g. 'Kal raat aap kaafi stressed lag rahe the… ab kaise feel kar rahe hain?'). Otherwise a calm fresh greeting.",
+        multi_day: "MULTI-DAY gap (1–7 days) → warm reconnection without guilt-tripping (e.g. 'Kaafi din baad aaye… sab theek chal raha hai?' / 'I was wondering how you've been').",
+        long_absence: "LONG ABSENCE (>1 week) → genuinely warm welcome back, light reference to time passing, no pressure (e.g. 'Hey, kaafi time baad… aap kaise hain?').",
+      };
+
+      const todToneHint: Record<string, string> = {
+        morning: "Morning tone: calm, fresh, gentle 'Good morning' style if greeting.",
+        afternoon: "Afternoon tone: casual, easy reconnect.",
+        evening: "Evening tone: warm, slightly slower-paced.",
+        late_night: "Late-night tone: extra soft, low-energy. May gently note 'Kaafi late tak jag rahe hain aap…' if a greeting fits — never as judgment.",
+      };
+
+      timeAwareBlock = `TIME-AWARE CONTEXT (use to make reconnection feel human — never state numbers like "you were inactive for X hours"):
+- gap_category=${gapCategory} (last user msg ~${gapMin < 60 ? Math.round(gapMin) + " min" : gapHr < 24 ? gapHr.toFixed(1) + " hr" : gapDays.toFixed(1) + " days"} ago)
+- time_of_day=${timeOfDay} (local server time)
+- new_day=${isNewDay ? "yes" : "no"}
+- last_emotion=${lastEmotion}
+- last_topic_snippet="${lastTopic}"
+
+GUIDANCE: ${guidanceByGap[gapCategory]}
+${todToneHint[timeOfDay]}
+
+EMOTIONAL CONTINUITY: If gap is overnight or longer AND last_emotion was negative (stress/anxiety/sadness/anger/fear/loneliness), gently reference it ONCE with care — e.g. "Last time aap ${lastEmotion} feel kar rahe the…" — then ask how they feel now. If last_emotion was joy/neutral, do NOT bring up the past — just reconnect freshly. NEVER repeat the same greeting style as your most recent reply. Keep reconnection to ONE short line, then flow into normal supportive response.`;
+    }
     const langInstruction: Record<string, string> = {
       "english": "USER WROTE IN ENGLISH → Reply in natural, warm English ONLY. Do NOT insert Hindi/Hinglish words like 'yaar', 'thoda', 'samajh sakta hoon', 'aap', etc.",
       "hindi-devanagari": "USER WROTE IN HINDI (Devanagari) → Reply in conversational Hindi using Devanagari script.",
@@ -253,6 +319,8 @@ Behavior signals:
 Style for THIS reply: ${suggestedStyle} (last reply was ${lastStyle || "n/a"} — do not repeat that style).
 
 LANGUAGE FOR THIS REPLY: ${langInstruction[userLang]}
+
+${timeAwareBlock}
 
 Your last replies (DO NOT repeat their openers, sentence patterns, or closing questions):
 ${recentReplies || "(none yet)"}
