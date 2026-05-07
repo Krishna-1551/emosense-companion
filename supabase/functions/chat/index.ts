@@ -217,6 +217,27 @@ Deno.serve(async (req) => {
     const isLongMessage = messageLength > 160;
     const shortReply = messageLength > 0 && messageLength < 15;
     const longPause = (delayMin ?? 0) > 10;
+
+    // Language detection — mirror the user's style instead of forcing Hinglish
+    const detectLang = (text: string): "english" | "hindi-devanagari" | "hindi-roman" | "hinglish" => {
+      const t = (text || "").trim();
+      if (!t) return "english";
+      if (/[\u0900-\u097F]/.test(t)) return "hindi-devanagari";
+      const HINDI_ROMAN = /\b(hai|hain|nahi|nahin|kya|kyun|kyu|mujhe|mera|meri|tum|tu|aap|aapko|kaisa|kaisi|kaise|theek|thik|achha|accha|bahut|bohot|kaafi|thoda|thodi|yaar|bhai|didi|kuch|kuchh|abhi|raha|rahi|rahe|hota|hoti|hua|hui|jab|tab|wahan|yahan|ghar|kaam|samajh|samjha|matlab|chahiye|sakta|sakti|sakte|hoon|haan|chal|chalta|sab|lekin|magar|aur|toh|phir|fir|kabhi|aaj|baat|batao|bataiye|gaya|gayi|aaya|aayi|tha|thi|bhi)\b/gi;
+      const matches = t.match(HINDI_ROMAN) || [];
+      const words = t.split(/\s+/).filter(Boolean);
+      const ratio = words.length ? matches.length / words.length : 0;
+      if (ratio === 0) return "english";
+      if (ratio >= 0.5) return "hindi-roman";
+      return "hinglish";
+    };
+    const userLang = detectLang(message);
+    const langInstruction: Record<string, string> = {
+      "english": "USER WROTE IN ENGLISH → Reply in natural, warm English ONLY. Do NOT insert Hindi/Hinglish words like 'yaar', 'thoda', 'samajh sakta hoon', 'aap', etc.",
+      "hindi-devanagari": "USER WROTE IN HINDI (Devanagari) → Reply in conversational Hindi using Devanagari script.",
+      "hindi-roman": "USER WROTE IN HINDI (romanized) → Reply in conversational romanized Hindi using 'aap' by default.",
+      "hinglish": "USER WROTE IN HINGLISH → Reply in the SAME Hinglish mix, matching their balance of Hindi + English.",
+    };
     const behaviorContext = `User profile (use for personalized suggestions, do not mention you have it):
 - name=${profile?.display_name ?? "unknown"}
 - age=${profile?.age ?? "unknown"}
