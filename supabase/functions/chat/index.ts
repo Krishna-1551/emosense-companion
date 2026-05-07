@@ -252,6 +252,8 @@ Behavior signals:
 
 Style for THIS reply: ${suggestedStyle} (last reply was ${lastStyle || "n/a"} — do not repeat that style).
 
+LANGUAGE FOR THIS REPLY: ${langInstruction[userLang]}
+
 Your last replies (DO NOT repeat their openers, sentence patterns, or closing questions):
 ${recentReplies || "(none yet)"}
 
