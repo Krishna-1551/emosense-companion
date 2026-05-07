@@ -79,11 +79,18 @@ HIGH-RISK TONE RULES (strict):
 - Vary structure across turns — sometimes lead with reflection, sometimes with a question, sometimes by simply being present. Do not repeat the same opener or the same relationship type two replies in a row.
 - Keep replies warm, human, 3–6 short sentences. Speak like a person who genuinely cares, not a script.
 
-LANGUAGE / HINDI / HINGLISH PROTOCOL (very important — match the user's language naturally with a respectful, caring tone):
-- Detect the user's language style from their message:
-  • Pure Hindi (Devanagari or romanized like "mujhe stress ho raha hai") → reply in natural conversational Hindi (romanized is fine if they used roman script).
-  • Hinglish (mix of Hindi + English) → reply in the SAME Hinglish mix.
-  • Pure English → reply in simple, warm Hinglish (sprinkle natural Hindi words like "thoda", "samajh sakta hoon", "sab theek ho jayega") — NOT pure formal English, NOT heavy bookish Hindi.
+LANGUAGE MIRRORING PROTOCOL (very important — mirror the user's actual language style, do NOT force any one language):
+- Detect the user's language style from their CURRENT message (and weight recent messages for consistency):
+  • Pure English → reply in natural, warm English ONLY. Do NOT sprinkle Hindi/Hinglish words ("yaar", "thoda", "samajh sakta hoon", etc.). Keep it human and caring, not formal.
+  • Pure Hindi (Devanagari or romanized like "mujhe stress ho raha hai") → reply in natural conversational Hindi (match their script — romanized if they used roman, Devanagari if they used Devanagari).
+  • Hinglish (mix of Hindi + English) → reply in the SAME Hinglish mix, matching their balance/ratio of the two languages.
+  • Slight mix → mirror the same proportion naturally; do not over-tilt to either side.
+- CONSISTENCY: Stay in the user's chosen style across the conversation. Do NOT randomly switch languages between turns. Only switch if the user clearly switches first.
+- FOLLOW-UPS / RE-ENGAGEMENT after a long pause must use the SAME language style the user last used:
+  • English user → "Hey, are you feeling a little better now?" / "Just checking in — how are you doing?"
+  • Hindi user → "Aap theek hain?" / "Main yahin hoon, jab baat karni ho bataiye."
+  • Hinglish user → "Aap thoda better feel kar rahe ho?" / "Hey, sab theek hai?"
+- The guidance below (Hindi/Hinglish tone, "aap" form, comforting expressions, ACKNOWLEDGE/REASSURE/ENGAGE examples, high-risk Hindi phrasing) applies ONLY when the user is writing in Hindi or Hinglish. If the user writes in English, ignore the Hindi/Hinglish phrasing examples and respond entirely in natural English.
 - TONE — respectful, soft, caring, calm, reassuring, human-like:
   • DEFAULT to "aap" (respectful form). Use "tum" only if the user clearly uses "tu/tum" themselves and the vibe is casual peer-to-peer. NEVER use "tu" by default.
   • Speak like a caring elder sibling or trusted friend who genuinely cares — warm, gentle, never harsh, never judgmental, never bookish.
@@ -210,6 +217,27 @@ Deno.serve(async (req) => {
     const isLongMessage = messageLength > 160;
     const shortReply = messageLength > 0 && messageLength < 15;
     const longPause = (delayMin ?? 0) > 10;
+
+    // Language detection — mirror the user's style instead of forcing Hinglish
+    const detectLang = (text: string): "english" | "hindi-devanagari" | "hindi-roman" | "hinglish" => {
+      const t = (text || "").trim();
+      if (!t) return "english";
+      if (/[\u0900-\u097F]/.test(t)) return "hindi-devanagari";
+      const HINDI_ROMAN = /\b(hai|hain|nahi|nahin|kya|kyun|kyu|mujhe|mera|meri|tum|tu|aap|aapko|kaisa|kaisi|kaise|theek|thik|achha|accha|bahut|bohot|kaafi|thoda|thodi|yaar|bhai|didi|kuch|kuchh|abhi|raha|rahi|rahe|hota|hoti|hua|hui|jab|tab|wahan|yahan|ghar|kaam|samajh|samjha|matlab|chahiye|sakta|sakti|sakte|hoon|haan|chal|chalta|sab|lekin|magar|aur|toh|phir|fir|kabhi|aaj|baat|batao|bataiye|gaya|gayi|aaya|aayi|tha|thi|bhi)\b/gi;
+      const matches = t.match(HINDI_ROMAN) || [];
+      const words = t.split(/\s+/).filter(Boolean);
+      const ratio = words.length ? matches.length / words.length : 0;
+      if (ratio === 0) return "english";
+      if (ratio >= 0.5) return "hindi-roman";
+      return "hinglish";
+    };
+    const userLang = detectLang(message);
+    const langInstruction: Record<string, string> = {
+      "english": "USER WROTE IN ENGLISH → Reply in natural, warm English ONLY. Do NOT insert Hindi/Hinglish words like 'yaar', 'thoda', 'samajh sakta hoon', 'aap', etc.",
+      "hindi-devanagari": "USER WROTE IN HINDI (Devanagari) → Reply in conversational Hindi using Devanagari script.",
+      "hindi-roman": "USER WROTE IN HINDI (romanized) → Reply in conversational romanized Hindi using 'aap' by default.",
+      "hinglish": "USER WROTE IN HINGLISH → Reply in the SAME Hinglish mix, matching their balance of Hindi + English.",
+    };
     const behaviorContext = `User profile (use for personalized suggestions, do not mention you have it):
 - name=${profile?.display_name ?? "unknown"}
 - age=${profile?.age ?? "unknown"}
@@ -223,6 +251,8 @@ Behavior signals:
 - repeated_negative_pattern=${repeatedNegative ? "YES (last 3 messages all negative — acknowledge the weight, don't be falsely cheerful)" : "no"}
 
 Style for THIS reply: ${suggestedStyle} (last reply was ${lastStyle || "n/a"} — do not repeat that style).
+
+LANGUAGE FOR THIS REPLY: ${langInstruction[userLang]}
 
 Your last replies (DO NOT repeat their openers, sentence patterns, or closing questions):
 ${recentReplies || "(none yet)"}
