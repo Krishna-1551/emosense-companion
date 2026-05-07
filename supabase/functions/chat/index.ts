@@ -320,6 +320,8 @@ Style for THIS reply: ${suggestedStyle} (last reply was ${lastStyle || "n/a"} â€
 
 LANGUAGE FOR THIS REPLY: ${langInstruction[userLang]}
 
+${timeAwareBlock}
+
 Your last replies (DO NOT repeat their openers, sentence patterns, or closing questions):
 ${recentReplies || "(none yet)"}
 
