@@ -226,6 +226,57 @@ export type Database = {
           },
         ]
       }
+      user_learning_profile: {
+        Row: {
+          active_hours: Json | null
+          avg_user_msg_length: number | null
+          emotion_history: Json | null
+          engagement_pattern: Json | null
+          interaction_count: number | null
+          last_style: string | null
+          preferred_language: string | null
+          preferred_tone: string | null
+          prefers_short_replies: boolean | null
+          recurring_topics: Json | null
+          response_effectiveness: number | null
+          successful_styles: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_hours?: Json | null
+          avg_user_msg_length?: number | null
+          emotion_history?: Json | null
+          engagement_pattern?: Json | null
+          interaction_count?: number | null
+          last_style?: string | null
+          preferred_language?: string | null
+          preferred_tone?: string | null
+          prefers_short_replies?: boolean | null
+          recurring_topics?: Json | null
+          response_effectiveness?: number | null
+          successful_styles?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_hours?: Json | null
+          avg_user_msg_length?: number | null
+          emotion_history?: Json | null
+          engagement_pattern?: Json | null
+          interaction_count?: number | null
+          last_style?: string | null
+          preferred_language?: string | null
+          preferred_tone?: string | null
+          prefers_short_replies?: boolean | null
+          recurring_topics?: Json | null
+          response_effectiveness?: number | null
+          successful_styles?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
