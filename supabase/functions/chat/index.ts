@@ -416,6 +416,8 @@ LANGUAGE FOR THIS REPLY: ${langInstruction[userLang]}
 
 ${timeAwareBlock}
 
+${evolutionBlock}
+
 Your last replies (DO NOT repeat their openers, sentence patterns, or closing questions):
 ${recentReplies || "(none yet)"}
 
