@@ -233,6 +233,100 @@ Deno.serve(async (req) => {
     };
     const userLang = detectLang(message);
 
+    // --- Self-Evolving Learning Profile ---
+    // Aggregates patterns across the user's history so the AI personalizes gradually.
+    const { data: learning } = await supabase
+      .from("user_learning_profile")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const { data: userMsgsAgg } = await supabase
+      .from("messages")
+      .select("created_at, content, emotion, sentiment, message_length")
+      .eq("user_id", user.id)
+      .eq("role", "user")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    const allUserMsgs = userMsgsAgg || [];
+    const interactionCount = allUserMsgs.length;
+    const avgLen = interactionCount
+      ? allUserMsgs.reduce((s, m: any) => s + (m.message_length ?? (m.content?.length ?? 0)), 0) / interactionCount
+      : 0;
+    const prefersShort = avgLen > 0 && avgLen < 40;
+    const prefersDeep = avgLen > 180;
+
+    // Active hours histogram + dominant slot
+    const hourBuckets: Record<string, number> = { morning: 0, afternoon: 0, evening: 0, late_night: 0 };
+    for (const m of allUserMsgs) {
+      const h = new Date(m.created_at).getHours();
+      const slot = h >= 5 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : h >= 17 && h < 22 ? "evening" : "late_night";
+      hourBuckets[slot]++;
+    }
+    const dominantSlot = Object.entries(hourBuckets).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+    // Emotion history counts
+    const emotionCounts: Record<string, number> = {};
+    for (const m of allUserMsgs) {
+      const e = (m as any).emotion;
+      if (e) emotionCounts[e] = (emotionCounts[e] || 0) + 1;
+    }
+    const topEmotions = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([e, c]) => `${e}(${c})`);
+
+    // Recurring topic keywords (very lightweight extraction)
+    const TOPIC_KEYWORDS = ["exam","exams","study","studies","college","school","work","job","boss","office","deadline","family","mom","dad","parents","relationship","breakup","partner","friend","friends","lonely","loneliness","money","finance","health","sleep","insomnia","future","career","anxiety","panic"];
+    const topicCounts: Record<string, number> = {};
+    for (const m of allUserMsgs) {
+      const text = ((m as any).content || "").toLowerCase();
+      for (const kw of TOPIC_KEYWORDS) {
+        if (new RegExp(`\\b${kw}\\b`).test(text)) topicCounts[kw] = (topicCounts[kw] || 0) + 1;
+      }
+    }
+    const recurringTopics = Object.entries(topicCounts).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, c]) => `${k}(${c})`);
+
+    // Style effectiveness: a style "worked" if user replied within 10min and sentiment improved or stayed positive
+    const successfulStyles: Record<string, number> = (learning?.successful_styles as any) || {};
+
+    // Preferred language: rolling vote — last detected lang weighted with stored
+    const langVotes: Record<string, number> = {};
+    langVotes[userLang] = (langVotes[userLang] || 0) + 1;
+    if (learning?.preferred_language) langVotes[learning.preferred_language] = (langVotes[learning.preferred_language] || 0) + 2;
+    const preferredLanguage = Object.entries(langVotes).sort((a, b) => b[1] - a[1])[0][0];
+
+    // Tone preference inference
+    const negRatio = allUserMsgs.length
+      ? allUserMsgs.filter((m: any) => m.sentiment === "negative").length / allUserMsgs.length
+      : 0;
+    const preferredTone = prefersShort ? "concise-warm" : prefersDeep ? "reflective-deep" : negRatio > 0.5 ? "calm-listening" : "friendly-supportive";
+
+    // Familiarity stage drives gradual personalization
+    const familiarity =
+      interactionCount < 5 ? "new" :
+      interactionCount < 25 ? "warming-up" :
+      interactionCount < 75 ? "familiar" : "long-term";
+
+    // Build evolution block — gentle hints, never drastic shifts
+    const bestStyle = Object.entries(successfulStyles).sort((a, b) => (b[1] as number) - (a[1] as number))[0]?.[0];
+    const evolutionBlock = `SELF-EVOLVING PERSONALIZATION (apply gradually — never shift personality drastically):
+- familiarity_stage=${familiarity} (interactions=${interactionCount})
+- preferred_language=${preferredLanguage}
+- preferred_tone=${preferredTone}${prefersShort ? " (keep replies short, 2-3 sentences)" : prefersDeep ? " (user opens deeply — be more reflective, 4-5 sentences)" : ""}
+- dominant_active_slot=${dominantSlot ?? "n/a"}
+- top_emotions=${topEmotions.join(", ") || "n/a"}
+- recurring_topics=${recurringTopics.join(", ") || "n/a"}
+- best_performing_style=${bestStyle ?? "n/a"} (favor it slightly when it fits, do NOT force)
+- effectiveness_score=${(learning?.response_effectiveness ?? 0).toFixed?.(2) ?? "0.00"}
+
+EVOLUTION GUIDANCE:
+- familiarity=new → stay open, neutral greetings, ask broad gentle questions; do NOT reference patterns yet.
+- familiarity=warming-up → may softly acknowledge a recurring topic if it appears again ("Lagta hai ${recurringTopics[0]?.split("(")[0] ?? "this"} phir se mind me hai…"). Still cautious.
+- familiarity=familiar/long-term → may reference recurring patterns naturally ("Aap usually is time pe stressed feel karte hain…" — only if pattern strongly fits). Treat the user like someone you know.
+- If preferred_tone=calm-listening → reduce suggestions, focus on listening + reflection.
+- If preferred_tone=concise-warm → keep replies tight; one acknowledgment + one gentle question.
+- If preferred_tone=reflective-deep → mirror more details from their message, fewer questions.
+- Never announce that you've learned things ("I noticed a pattern in your data" is forbidden). Make it feel like natural memory of a caring friend.`;
+
     // --- Time-Aware Conversation Context ---
     // Derive gap category, time-of-day, new-day flag, last emotion + topic snippet
     // from the user's most recent prior user message. Purely contextual — no new tables.
