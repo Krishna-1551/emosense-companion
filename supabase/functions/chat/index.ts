@@ -540,6 +540,39 @@ ${bannedBlock}`;
       risk_level: args.risk_level,
     });
 
+    // --- Self-Evolving: update learning profile (best-effort, non-blocking semantics) ---
+    try {
+      // Style effectiveness: previous suggested style "succeeded" if current user msg is positive/neutral or short engagement (means flow continues)
+      const prevStyle = learning?.last_style;
+      const updatedStyles: Record<string, number> = { ...successfulStyles };
+      if (prevStyle) {
+        const success = args.sentiment !== "negative" || (args.sentiment_score ?? 0) > (lastUserMsgRow ? -0.2 : -1);
+        updatedStyles[prevStyle] = (updatedStyles[prevStyle] || 0) + (success ? 1 : -0.5);
+      }
+      // Effectiveness score = normalized sum of positive style hits
+      const effSum = Object.values(updatedStyles).reduce((a: number, b: any) => a + (b || 0), 0);
+      const effectiveness = Math.max(-1, Math.min(1, effSum / Math.max(10, interactionCount + 1)));
+
+      await supabase.from("user_learning_profile").upsert({
+        user_id: user.id,
+        preferred_language: preferredLanguage,
+        preferred_tone: preferredTone,
+        avg_user_msg_length: avgLen,
+        prefers_short_replies: prefersShort,
+        engagement_pattern: { dominant_slot: dominantSlot, hour_buckets: hourBuckets, neg_ratio: negRatio },
+        successful_styles: updatedStyles,
+        recurring_topics: recurringTopics,
+        emotion_history: emotionCounts,
+        interaction_count: interactionCount + 1,
+        active_hours: hourBuckets,
+        response_effectiveness: effectiveness,
+        last_style: suggestedStyle,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id" });
+    } catch (learnErr) {
+      console.error("learning profile update failed", learnErr);
+    }
+
     return new Response(JSON.stringify(args), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
