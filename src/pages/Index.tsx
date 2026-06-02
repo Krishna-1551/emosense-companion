@@ -9,8 +9,10 @@ import { MoodDashboard } from "@/components/MoodDashboard";
 import { OnboardingForm } from "@/components/OnboardingForm";
 import { EmotionMeter, PrivacyBadge, InsightBubble, deriveMeter, useDismissible } from "@/components/EngagementExtras";
 import { ConnectInbox } from "@/components/ConnectInbox";
+import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Send, LogOut, Shield } from "lucide-react";
+import { Sparkles, Send, LogOut, Shield, Menu } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
