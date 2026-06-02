@@ -545,13 +545,20 @@ ${bannedBlock}`;
     // Repeated negative pattern → escalate at least to moderate
     if (repeatedNegative && args.risk_level === "low") args.risk_level = "moderate";
 
-    // Save both messages + mood log
+    // Save both messages + mood log (scoped to this conversation)
     await supabase.from("messages").insert([
-      { user_id: user.id, role: "user", content: message, message_length: messageLength,
+      { user_id: user.id, conversation_id: conversationId, role: "user", content: message, message_length: messageLength,
         emotion: args.emotion, sentiment: args.sentiment, risk_level: args.risk_level,
         response_delay_seconds: responseDelaySec },
-      { user_id: user.id, role: "assistant", content: args.reply, message_length: args.reply.length },
+      { user_id: user.id, conversation_id: conversationId, role: "assistant", content: args.reply, message_length: args.reply.length },
     ]);
+
+    // Auto-title from the first user message if title is empty
+    if (!conversationTitle) {
+      const cleaned = message.replace(/\s+/g, " ").trim();
+      const autoTitle = (cleaned.length > 50 ? cleaned.slice(0, 50).trimEnd() + "…" : cleaned) || "New chat";
+      await supabase.from("conversations").update({ title: autoTitle }).eq("id", conversationId);
+    }
     await supabase.from("mood_logs").insert({
       user_id: user.id,
       emotion: args.emotion,
