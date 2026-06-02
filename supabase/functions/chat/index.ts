@@ -353,6 +353,7 @@ EVOLUTION GUIDANCE:
       .from("messages")
       .select("created_at, emotion, content")
       .eq("user_id", user.id)
+      .eq("conversation_id", conversationId)
       .eq("role", "user")
       .order("created_at", { ascending: false })
       .limit(1)
