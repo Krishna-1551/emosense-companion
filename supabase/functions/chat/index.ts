@@ -134,19 +134,38 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { message, history = [] } = await req.json();
+    const { message, history = [], conversation_id: incomingConvId } = await req.json();
     if (!message || typeof message !== "string") {
       return new Response(JSON.stringify({ error: "message required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Behavior signals
+    // Resolve / create the active conversation
+    let conversationId: string | null = incomingConvId ?? null;
+    let conversationTitle: string | null = null;
+    if (conversationId) {
+      const { data: convCheck } = await supabase
+        .from("conversations").select("id, title")
+        .eq("id", conversationId).eq("user_id", user.id).maybeSingle();
+      if (!convCheck) conversationId = null;
+      else conversationTitle = convCheck.title;
+    }
+    if (!conversationId) {
+      const { data: created, error: convErr } = await supabase
+        .from("conversations").insert({ user_id: user.id, title: null }).select("id, title").single();
+      if (convErr || !created) throw new Error("Could not create conversation");
+      conversationId = created.id;
+      conversationTitle = null;
+    }
+
+    // Behavior signals — scoped to THIS conversation for context isolation
     const messageLength = message.length;
     const { data: recent } = await supabase
       .from("messages")
       .select("created_at, risk_level, sentiment, role")
       .eq("user_id", user.id)
+      .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
       .limit(10);
 
@@ -157,15 +176,15 @@ Deno.serve(async (req) => {
     const delayMin = responseDelaySec != null ? Math.round(responseDelaySec / 60) : null;
     const recentHighRisk = (recent || []).filter(r => r.risk_level === "high").length;
 
-    // Repeated negative sentiment pattern (last 3 user messages)
     const lastUserSentiments = (recent || []).filter(r => r.role === "user").slice(0, 3).map(r => r.sentiment);
     const repeatedNegative = lastUserSentiments.length >= 3 && lastUserSentiments.every(s => s === "negative");
 
-    // Last 5 assistant replies (anti-repetition context)
+    // Last 5 assistant replies in THIS conversation (anti-repetition)
     const { data: lastAssistant } = await supabase
       .from("messages")
       .select("content")
       .eq("user_id", user.id)
+      .eq("conversation_id", conversationId)
       .eq("role", "assistant")
       .order("created_at", { ascending: false })
       .limit(5);
