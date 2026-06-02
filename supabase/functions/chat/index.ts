@@ -600,7 +600,7 @@ ${bannedBlock}`;
       console.error("learning profile update failed", learnErr);
     }
 
-    return new Response(JSON.stringify(args), {
+    return new Response(JSON.stringify({ ...args, conversation_id: conversationId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
