@@ -301,11 +301,20 @@ const Index = () => {
     setMessages(m => [...m, userMsg]);
 
     try {
+      const priorMessages = messages.filter(m => m.id || m.role === "user"); // exclude the welcome placeholder
       const { data, error } = await supabase.functions.invoke("chat", {
-        body: { message: text, history: messages.slice(-10) },
+        body: {
+          message: text,
+          history: priorMessages.slice(-10),
+          conversation_id: activeConversationId,
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (data.conversation_id && data.conversation_id !== activeConversationId) {
+        setActiveConversationId(data.conversation_id);
+      }
+      setSidebarRefresh(n => n + 1);
       // attach emotion to last user msg
       setMessages(m => {
         const copy = [...m];
