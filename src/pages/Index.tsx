@@ -9,8 +9,10 @@ import { MoodDashboard } from "@/components/MoodDashboard";
 import { OnboardingForm } from "@/components/OnboardingForm";
 import { EmotionMeter, PrivacyBadge, InsightBubble, deriveMeter, useDismissible } from "@/components/EngagementExtras";
 import { ConnectInbox } from "@/components/ConnectInbox";
+import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Send, LogOut, Shield } from "lucide-react";
+import { Sparkles, Send, LogOut, Shield, Menu } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -23,6 +25,12 @@ type Msg = {
   created_at?: string;
 };
 
+const WELCOME: Msg = {
+  role: "assistant",
+  content: "Hi, I'm EmoSense 🌙 A safe space for whatever you're feeling. How are you, really?",
+  emotion: "neutral",
+};
+
 const Index = () => {
   const { user, loading, isAdmin, signOut } = useAuth();
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -33,26 +41,51 @@ const Index = () => {
   const [profileChecked, setProfileChecked] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [nudgeSent, setNudgeSent] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sidebarRefresh, setSidebarRefresh] = useState(0);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const insight = useDismissible("emosense_insight_dismissed");
   const scrollerRef = useRef<HTMLDivElement>(null);
 
+  // On login: pick most recent conversation (or start a fresh one implicitly on first send)
   useEffect(() => {
     if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (data && data.length) {
+        setActiveConversationId(data[0].id);
+      } else {
+        setActiveConversationId(null);
+        setMessages([WELCOME]);
+      }
+      refreshContact();
+    })();
+  }, [user]);
+
+  // Load messages whenever active conversation changes
+  useEffect(() => {
+    if (!user) return;
+    if (!activeConversationId) { setMessages([WELCOME]); return; }
+    setLoadingMessages(true);
     supabase.from("messages")
       .select("id, role, content, emotion, risk_level, created_at")
       .eq("user_id", user.id)
+      .eq("conversation_id", activeConversationId)
       .order("created_at", { ascending: true })
-      .limit(100)
+      .limit(500)
       .then(({ data }) => {
-        if (data && data.length) setMessages(data as Msg[]);
-        else setMessages([{
-          role: "assistant",
-          content: "Hi, I'm EmoSense 🌙 A safe space for whatever you're feeling. How are you, really?",
-          emotion: "neutral",
-        }]);
+        setMessages(data && data.length ? (data as Msg[]) : [WELCOME]);
+        setLoadingMessages(false);
       });
-    refreshContact();
-  }, [user]);
+  }, [user, activeConversationId]);
+
+
 
   const refreshContact = async () => {
     if (!user) return;
@@ -268,11 +301,20 @@ const Index = () => {
     setMessages(m => [...m, userMsg]);
 
     try {
+      const priorMessages = messages.filter(m => m.id || m.role === "user"); // exclude the welcome placeholder
       const { data, error } = await supabase.functions.invoke("chat", {
-        body: { message: text, history: messages.slice(-10) },
+        body: {
+          message: text,
+          history: priorMessages.slice(-10),
+          conversation_id: activeConversationId,
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (data.conversation_id && data.conversation_id !== activeConversationId) {
+        setActiveConversationId(data.conversation_id);
+      }
+      setSidebarRefresh(n => n + 1);
       // attach emotion to last user msg
       setMessages(m => {
         const copy = [...m];
@@ -300,40 +342,85 @@ const Index = () => {
     setNeedsOnboarding(false);
   }} />;
 
+  const handleNewChat = () => {
+    setActiveConversationId(null);
+    setMessages([WELCOME]);
+    setMobileSidebarOpen(false);
+  };
+
+  const handleSelectConversation = (id: string) => {
+    setActiveConversationId(id);
+    setMobileSidebarOpen(false);
+  };
+
+  const sidebarContent = (
+    <div className="flex flex-col h-full gap-4 min-h-0">
+      <div className="flex items-center gap-3">
+        <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center pulse-ring">
+          <Sparkles className="w-5 h-5 text-primary-foreground" />
+        </div>
+        <div>
+          <h1 className="text-lg font-semibold leading-none gradient-text">EmoSense AI</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Your gentle companion</p>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0">
+        <ConversationSidebar
+          userId={user.id}
+          activeId={activeConversationId}
+          onSelect={handleSelectConversation}
+          onNew={handleNewChat}
+          refreshKey={sidebarRefresh}
+        />
+      </div>
+
+      <div className="hidden lg:block">
+        <MoodDashboard />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <TrustedContactDialog onSaved={refreshContact} />
+        <PanicButton trustedContact={contact} />
+      </div>
+
+      {isAdmin && (
+        <Link to="/admin" className="block">
+          <Button variant="outline" size="sm" className="w-full justify-start">
+            <Shield className="w-4 h-4 mr-2" /> Admin dashboard
+          </Button>
+        </Link>
+      )}
+      <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-muted-foreground hover:text-foreground">
+        <LogOut className="w-4 h-4 mr-2" /> Sign out
+      </Button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* Sidebar */}
-      <aside className="lg:w-80 lg:h-screen lg:sticky lg:top-0 p-4 lg:p-6 space-y-4 border-b lg:border-b-0 lg:border-r border-border/50 bg-card/30 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center pulse-ring">
-            <Sparkles className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold leading-none gradient-text">EmoSense AI</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Your gentle companion</p>
-          </div>
-        </div>
-
-        <div className="hidden lg:block">
-          <MoodDashboard />
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <TrustedContactDialog onSaved={refreshContact} />
-          <PanicButton trustedContact={contact} />
-        </div>
-
-        {isAdmin && (
-          <Link to="/admin" className="block">
-            <Button variant="outline" size="sm" className="w-full justify-start">
-              <Shield className="w-4 h-4 mr-2" /> Admin dashboard
-            </Button>
-          </Link>
-        )}
-        <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start text-muted-foreground hover:text-foreground">
-          <LogOut className="w-4 h-4 mr-2" /> Sign out
-        </Button>
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex lg:w-80 lg:h-screen lg:sticky lg:top-0 p-4 lg:p-6 border-b lg:border-b-0 lg:border-r border-border/50 bg-card/30 backdrop-blur">
+        {sidebarContent}
       </aside>
+
+      {/* Mobile top bar with sheet trigger */}
+      <div className="lg:hidden flex items-center gap-2 p-3 border-b border-border/50 bg-card/30 backdrop-blur sticky top-0 z-20">
+        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label="Open chats">
+              <Menu className="w-5 h-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-80 p-4">
+            {sidebarContent}
+          </SheetContent>
+        </Sheet>
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-primary" />
+          <span className="text-sm font-semibold gradient-text">EmoSense AI</span>
+        </div>
+      </div>
 
       {/* Chat */}
       <main className="flex-1 flex flex-col h-[calc(100vh-180px)] lg:h-screen">
