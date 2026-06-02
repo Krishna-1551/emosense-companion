@@ -25,6 +25,12 @@ type Msg = {
   created_at?: string;
 };
 
+const WELCOME: Msg = {
+  role: "assistant",
+  content: "Hi, I'm EmoSense 🌙 A safe space for whatever you're feeling. How are you, really?",
+  emotion: "neutral",
+};
+
 const Index = () => {
   const { user, loading, isAdmin, signOut } = useAuth();
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -35,26 +41,51 @@ const Index = () => {
   const [profileChecked, setProfileChecked] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [nudgeSent, setNudgeSent] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sidebarRefresh, setSidebarRefresh] = useState(0);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const insight = useDismissible("emosense_insight_dismissed");
   const scrollerRef = useRef<HTMLDivElement>(null);
 
+  // On login: pick most recent conversation (or start a fresh one implicitly on first send)
   useEffect(() => {
     if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(1);
+      if (data && data.length) {
+        setActiveConversationId(data[0].id);
+      } else {
+        setActiveConversationId(null);
+        setMessages([WELCOME]);
+      }
+      refreshContact();
+    })();
+  }, [user]);
+
+  // Load messages whenever active conversation changes
+  useEffect(() => {
+    if (!user) return;
+    if (!activeConversationId) { setMessages([WELCOME]); return; }
+    setLoadingMessages(true);
     supabase.from("messages")
       .select("id, role, content, emotion, risk_level, created_at")
       .eq("user_id", user.id)
+      .eq("conversation_id", activeConversationId)
       .order("created_at", { ascending: true })
-      .limit(100)
+      .limit(500)
       .then(({ data }) => {
-        if (data && data.length) setMessages(data as Msg[]);
-        else setMessages([{
-          role: "assistant",
-          content: "Hi, I'm EmoSense 🌙 A safe space for whatever you're feeling. How are you, really?",
-          emotion: "neutral",
-        }]);
+        setMessages(data && data.length ? (data as Msg[]) : [WELCOME]);
+        setLoadingMessages(false);
       });
-    refreshContact();
-  }, [user]);
+  }, [user, activeConversationId]);
+
+
 
   const refreshContact = async () => {
     if (!user) return;
