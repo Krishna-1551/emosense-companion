@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { AttachmentChip, AttachmentAnalysis } from "./AttachmentChip";
 
 const emotionEmoji: Record<string, string> = {
   joy: "😊", sadness: "💙", anxiety: "🫧", stress: "🌊",
@@ -13,8 +14,22 @@ type Props = {
   time?: string;
 };
 
+// Parse attachment tag the backend embeds in message.content
+const ATTACHMENT_TAG = /\n*\[\[emosense-attachments:([\s\S]+?)\]\]\s*$/;
+const parseAttachments = (content: string): { text: string; attachments: AttachmentAnalysis[] } => {
+  const m = content.match(ATTACHMENT_TAG);
+  if (!m) return { text: content, attachments: [] };
+  try {
+    const parsed = JSON.parse(m[1]);
+    return { text: content.replace(ATTACHMENT_TAG, "").trim(), attachments: parsed };
+  } catch {
+    return { text: content, attachments: [] };
+  }
+};
+
 export const MessageBubble = ({ role, content, emotion, risk, time }: Props) => {
   const isUser = role === "user";
+  const { text, attachments } = parseAttachments(content);
   return (
     <div className={cn("flex w-full animate-float-up", isUser ? "justify-end" : "justify-start")}>
       <div className={cn(
@@ -23,7 +38,12 @@ export const MessageBubble = ({ role, content, emotion, risk, time }: Props) => 
           ? "bubble-user text-primary-foreground rounded-br-sm"
           : "bubble-ai text-foreground rounded-bl-sm border border-border/50"
       )}>
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">{content}</p>
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {attachments.map((a, i) => <AttachmentChip key={i} attachment={a} />)}
+          </div>
+        )}
+        {text && <p className="text-sm leading-relaxed whitespace-pre-wrap">{text}</p>}
         <div className={cn("flex items-center gap-2 mt-1.5 text-[10px]",
           isUser ? "text-primary-foreground/70" : "text-muted-foreground")}>
           {emotion && <span>{emotionEmoji[emotion] ?? "✨"} {emotion}</span>}
