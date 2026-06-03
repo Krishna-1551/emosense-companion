@@ -284,7 +284,7 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
       if (ratio >= 0.5) return "hindi-roman";
       return "hinglish";
     };
-    const userLang = detectLang(message);
+    const userLang = detectLang(message || (atts[0]?.analysis?.extractedText ?? ""));
 
     // --- Self-Evolving Learning Profile ---
     // Aggregates patterns across the user's history so the AI personalizes gradually.
