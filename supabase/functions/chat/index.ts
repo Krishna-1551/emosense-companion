@@ -489,7 +489,7 @@ ${bannedBlock}`;
           messages: [
             { role: "system", content: SYSTEM_PROMPT + "\n" + behaviorContext + (extraSystem ? "\n" + extraSystem : "") },
             ...history.slice(-10).map((m: any) => ({ role: m.role, content: m.content })),
-            { role: "user", content: message },
+            { role: "user", content: composedUserMessage },
           ],
           tools: [{
             type: "function",
