@@ -46,6 +46,7 @@ const Index = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const insight = useDismissible("emosense_insight_dismissed");
   const scrollerRef = useRef<HTMLDivElement>(null);
 
