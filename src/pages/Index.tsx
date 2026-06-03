@@ -10,6 +10,7 @@ import { OnboardingForm } from "@/components/OnboardingForm";
 import { EmotionMeter, PrivacyBadge, InsightBubble, deriveMeter, useDismissible } from "@/components/EngagementExtras";
 import { ConnectInbox } from "@/components/ConnectInbox";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
+import { AttachmentComposer, PendingAttachment } from "@/components/AttachmentComposer";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Send, LogOut, Shield, Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -45,6 +46,7 @@ const Index = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const insight = useDismissible("emosense_insight_dismissed");
   const scrollerRef = useRef<HTMLDivElement>(null);
 
@@ -292,21 +294,35 @@ const Index = () => {
 
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
-    if (!text || sending) return;
+    const ready = pendingAttachments.filter(a => !a.pending && a.analysis);
+    const stillPending = pendingAttachments.some(a => a.pending);
+    if (stillPending) { toast.message("Still analyzing attachment…"); return; }
+    if (!text && ready.length === 0) return;
+    if (sending) return;
     if (!override) setInput("");
     setSending(true);
     setLastActivity(new Date());
     setNudgeSent(false);
-    const userMsg: Msg = { role: "user", content: text };
-    setMessages(m => [...m, userMsg]);
+
+    // optimistic user bubble with attachment chips
+    const optimisticContent = text + (ready.length
+      ? `\n\n[[emosense-attachments:${JSON.stringify(ready.map(a => ({
+          kind: a.kind, filename: a.filename, mime: a.mime, ...a.analysis,
+        })))}]]`
+      : "");
+    setMessages(m => [...m, { role: "user", content: optimisticContent }]);
+    setPendingAttachments([]);
 
     try {
-      const priorMessages = messages.filter(m => m.id || m.role === "user"); // exclude the welcome placeholder
+      const priorMessages = messages.filter(m => m.id || m.role === "user");
       const { data, error } = await supabase.functions.invoke("chat", {
         body: {
           message: text,
           history: priorMessages.slice(-10),
           conversation_id: activeConversationId,
+          attachments: ready.map(a => ({
+            kind: a.kind, filename: a.filename, mime: a.mime, analysis: a.analysis,
+          })),
         },
       });
       if (error) throw error;
@@ -315,7 +331,6 @@ const Index = () => {
         setActiveConversationId(data.conversation_id);
       }
       setSidebarRefresh(n => n + 1);
-      // attach emotion to last user msg
       setMessages(m => {
         const copy = [...m];
         const lastUserIdx = copy.map(x => x.role).lastIndexOf("user");
@@ -465,6 +480,13 @@ const Index = () => {
               )}
 
 
+              <div className="max-w-2xl mx-auto">
+                <AttachmentComposer
+                  attachments={pendingAttachments}
+                  onChange={setPendingAttachments}
+                  disabled={sending}
+                />
+              </div>
               <div className="max-w-2xl mx-auto flex gap-2">
                 <input
                   value={input}
@@ -477,7 +499,7 @@ const Index = () => {
                 />
                 <button
                   onClick={() => send()}
-                  disabled={sending || !input.trim()}
+                  disabled={sending || (!input.trim() && pendingAttachments.length === 0) || pendingAttachments.some(a => a.pending)}
                   className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center disabled:opacity-50 hover:scale-105 transition glow"
                   aria-label="Send"
                 >

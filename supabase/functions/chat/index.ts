@@ -134,12 +134,46 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { message, history = [], conversation_id: incomingConvId } = await req.json();
-    if (!message || typeof message !== "string") {
-      return new Response(JSON.stringify({ error: "message required" }), {
+    const { message: rawMessage, history = [], conversation_id: incomingConvId, attachments = [] } = await req.json();
+    type AttachmentPayload = {
+      kind: "image" | "audio" | "document";
+      filename?: string | null;
+      mime?: string;
+      analysis: {
+        extractedText?: string; summary?: string; language?: string;
+        emotion?: string; intensity?: string; sentimentScore?: number;
+        riskScore?: number; strategy?: string;
+        visualCues?: string; speakingPatterns?: string;
+      };
+    };
+    const atts: AttachmentPayload[] = Array.isArray(attachments) ? attachments.slice(0, 4) : [];
+    const message: string = (typeof rawMessage === "string" ? rawMessage : "").trim();
+    if (!message && atts.length === 0) {
+      return new Response(JSON.stringify({ error: "message or attachment required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Build a synthesized context block from attachments so the AI treats them
+    // as part of the user's emotional signal — same engine for text/voice/image/doc.
+    const attachmentContext = atts.length ? atts.map((a, i) => {
+      const an = a.analysis || {} as any;
+      return `ATTACHMENT ${i + 1} (${a.kind}${a.filename ? `, "${a.filename}"` : ""}):
+- detected_language=${an.language ?? "unknown"}
+- detected_emotion=${an.emotion ?? "unknown"} (intensity=${an.intensity ?? "Low"})
+- sentiment_score=${an.sentimentScore ?? 0}, risk_score=${an.riskScore ?? 0}
+- strategy_hint=${an.strategy ?? ""}
+${a.kind === "image" && an.visualCues ? `- visual_cues=${an.visualCues}` : ""}
+${a.kind === "audio" && an.speakingPatterns ? `- speaking_patterns=${an.speakingPatterns}` : ""}
+${an.summary ? `- summary=${an.summary}` : ""}
+${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 1500)}"""` : ""}`;
+    }).join("\n\n") : "";
+
+    // The text actually sent to the model includes both the typed message and the
+    // synthesized attachment block. If user sent only an attachment, infer intent.
+    const composedUserMessage = [
+      message || (atts.length ? `[shared ${atts.map(a => a.kind).join(", ")} for emotional check-in — please respond to what you sense]` : ""),
+      attachmentContext ? `\n\n--- ATTACHMENT ANALYSIS (already processed; use as emotional context) ---\n${attachmentContext}` : "",
+    ].join("");
 
     // Resolve / create the active conversation
     let conversationId: string | null = incomingConvId ?? null;
@@ -160,7 +194,7 @@ Deno.serve(async (req) => {
     }
 
     // Behavior signals — scoped to THIS conversation for context isolation
-    const messageLength = message.length;
+    const messageLength = composedUserMessage.length;
     const { data: recent } = await supabase
       .from("messages")
       .select("created_at, risk_level, sentiment, role")
@@ -250,7 +284,7 @@ Deno.serve(async (req) => {
       if (ratio >= 0.5) return "hindi-roman";
       return "hinglish";
     };
-    const userLang = detectLang(message);
+    const userLang = detectLang(message || (atts[0]?.analysis?.extractedText ?? ""));
 
     // --- Self-Evolving Learning Profile ---
     // Aggregates patterns across the user's history so the AI personalizes gradually.
@@ -455,7 +489,7 @@ ${bannedBlock}`;
           messages: [
             { role: "system", content: SYSTEM_PROMPT + "\n" + behaviorContext + (extraSystem ? "\n" + extraSystem : "") },
             ...history.slice(-10).map((m: any) => ({ role: m.role, content: m.content })),
-            { role: "user", content: message },
+            { role: "user", content: composedUserMessage },
           ],
           tools: [{
             type: "function",
@@ -539,15 +573,33 @@ ${bannedBlock}`;
       /\bhopeless\b/i, /\bworthless\b/i, /\bcan'?t (go on|do this anymore|take it)\b/i,
       /\bgive up\b/i, /\bnobody (cares|would miss)\b/i, /\boverdose\b/i,
     ];
-    const keywordHighRisk = HIGH_RISK_PATTERNS.some(p => p.test(message));
+    const combinedRiskText = [message, ...atts.map(a => a.analysis?.extractedText || "")].join("\n");
+    const keywordHighRisk = HIGH_RISK_PATTERNS.some(p => p.test(combinedRiskText));
     if (keywordHighRisk) args.risk_level = "high";
+
+    // Escalate from attachment riskScore
+    const maxAttRisk = atts.reduce((m, a) => Math.max(m, a.analysis?.riskScore ?? 0), 0);
+    if (maxAttRisk >= 75) args.risk_level = "high";
+    else if (maxAttRisk >= 45 && args.risk_level === "low") args.risk_level = "moderate";
 
     // Repeated negative pattern → escalate at least to moderate
     if (repeatedNegative && args.risk_level === "low") args.risk_level = "moderate";
 
+    // Persist attachment metadata inline so the UI can render chips in history.
+    const attachmentTag = atts.length
+      ? `\n\n[[emosense-attachments:${JSON.stringify(atts.map(a => ({
+          kind: a.kind, filename: a.filename ?? null, mime: a.mime ?? null,
+          emotion: a.analysis?.emotion, intensity: a.analysis?.intensity,
+          language: a.analysis?.language, riskScore: a.analysis?.riskScore,
+          summary: a.analysis?.summary, extractedText: (a.analysis?.extractedText || "").slice(0, 600),
+          visualCues: a.analysis?.visualCues, speakingPatterns: a.analysis?.speakingPatterns,
+        })))}]]`
+      : "";
+    const storedUserContent = (message || (atts.length ? `(shared ${atts.map(a => a.kind).join(", ")})` : "")) + attachmentTag;
+
     // Save both messages + mood log (scoped to this conversation)
     await supabase.from("messages").insert([
-      { user_id: user.id, conversation_id: conversationId, role: "user", content: message, message_length: messageLength,
+      { user_id: user.id, conversation_id: conversationId, role: "user", content: storedUserContent, message_length: messageLength,
         emotion: args.emotion, sentiment: args.sentiment, risk_level: args.risk_level,
         response_delay_seconds: responseDelaySec },
       { user_id: user.id, conversation_id: conversationId, role: "assistant", content: args.reply, message_length: args.reply.length },
@@ -555,7 +607,8 @@ ${bannedBlock}`;
 
     // Auto-title from the first user message if title is empty
     if (!conversationTitle) {
-      const cleaned = message.replace(/\s+/g, " ").trim();
+      const titleBase = (message || atts[0]?.analysis?.summary || atts[0]?.filename || `New ${atts[0]?.kind ?? ""} chat`).toString();
+      const cleaned = titleBase.replace(/\s+/g, " ").trim();
       const autoTitle = (cleaned.length > 50 ? cleaned.slice(0, 50).trimEnd() + "…" : cleaned) || "New chat";
       await supabase.from("conversations").update({ title: autoTitle }).eq("id", conversationId);
     }
