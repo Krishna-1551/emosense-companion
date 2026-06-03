@@ -573,15 +573,33 @@ ${bannedBlock}`;
       /\bhopeless\b/i, /\bworthless\b/i, /\bcan'?t (go on|do this anymore|take it)\b/i,
       /\bgive up\b/i, /\bnobody (cares|would miss)\b/i, /\boverdose\b/i,
     ];
-    const keywordHighRisk = HIGH_RISK_PATTERNS.some(p => p.test(message));
+    const combinedRiskText = [message, ...atts.map(a => a.analysis?.extractedText || "")].join("\n");
+    const keywordHighRisk = HIGH_RISK_PATTERNS.some(p => p.test(combinedRiskText));
     if (keywordHighRisk) args.risk_level = "high";
+
+    // Escalate from attachment riskScore
+    const maxAttRisk = atts.reduce((m, a) => Math.max(m, a.analysis?.riskScore ?? 0), 0);
+    if (maxAttRisk >= 75) args.risk_level = "high";
+    else if (maxAttRisk >= 45 && args.risk_level === "low") args.risk_level = "moderate";
 
     // Repeated negative pattern → escalate at least to moderate
     if (repeatedNegative && args.risk_level === "low") args.risk_level = "moderate";
 
+    // Persist attachment metadata inline so the UI can render chips in history.
+    const attachmentTag = atts.length
+      ? `\n\n[[emosense-attachments:${JSON.stringify(atts.map(a => ({
+          kind: a.kind, filename: a.filename ?? null, mime: a.mime ?? null,
+          emotion: a.analysis?.emotion, intensity: a.analysis?.intensity,
+          language: a.analysis?.language, riskScore: a.analysis?.riskScore,
+          summary: a.analysis?.summary, extractedText: (a.analysis?.extractedText || "").slice(0, 600),
+          visualCues: a.analysis?.visualCues, speakingPatterns: a.analysis?.speakingPatterns,
+        })))}]]`
+      : "";
+    const storedUserContent = (message || (atts.length ? `(shared ${atts.map(a => a.kind).join(", ")})` : "")) + attachmentTag;
+
     // Save both messages + mood log (scoped to this conversation)
     await supabase.from("messages").insert([
-      { user_id: user.id, conversation_id: conversationId, role: "user", content: message, message_length: messageLength,
+      { user_id: user.id, conversation_id: conversationId, role: "user", content: storedUserContent, message_length: messageLength,
         emotion: args.emotion, sentiment: args.sentiment, risk_level: args.risk_level,
         response_delay_seconds: responseDelaySec },
       { user_id: user.id, conversation_id: conversationId, role: "assistant", content: args.reply, message_length: args.reply.length },
@@ -589,7 +607,8 @@ ${bannedBlock}`;
 
     // Auto-title from the first user message if title is empty
     if (!conversationTitle) {
-      const cleaned = message.replace(/\s+/g, " ").trim();
+      const titleBase = (message || atts[0]?.analysis?.summary || atts[0]?.filename || `New ${atts[0]?.kind ?? ""} chat`).toString();
+      const cleaned = titleBase.replace(/\s+/g, " ").trim();
       const autoTitle = (cleaned.length > 50 ? cleaned.slice(0, 50).trimEnd() + "…" : cleaned) || "New chat";
       await supabase.from("conversations").update({ title: autoTitle }).eq("id", conversationId);
     }
