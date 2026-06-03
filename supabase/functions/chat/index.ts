@@ -134,12 +134,46 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { message, history = [], conversation_id: incomingConvId } = await req.json();
-    if (!message || typeof message !== "string") {
-      return new Response(JSON.stringify({ error: "message required" }), {
+    const { message: rawMessage, history = [], conversation_id: incomingConvId, attachments = [] } = await req.json();
+    type AttachmentPayload = {
+      kind: "image" | "audio" | "document";
+      filename?: string | null;
+      mime?: string;
+      analysis: {
+        extractedText?: string; summary?: string; language?: string;
+        emotion?: string; intensity?: string; sentimentScore?: number;
+        riskScore?: number; strategy?: string;
+        visualCues?: string; speakingPatterns?: string;
+      };
+    };
+    const atts: AttachmentPayload[] = Array.isArray(attachments) ? attachments.slice(0, 4) : [];
+    const message: string = (typeof rawMessage === "string" ? rawMessage : "").trim();
+    if (!message && atts.length === 0) {
+      return new Response(JSON.stringify({ error: "message or attachment required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Build a synthesized context block from attachments so the AI treats them
+    // as part of the user's emotional signal — same engine for text/voice/image/doc.
+    const attachmentContext = atts.length ? atts.map((a, i) => {
+      const an = a.analysis || {} as any;
+      return `ATTACHMENT ${i + 1} (${a.kind}${a.filename ? `, "${a.filename}"` : ""}):
+- detected_language=${an.language ?? "unknown"}
+- detected_emotion=${an.emotion ?? "unknown"} (intensity=${an.intensity ?? "Low"})
+- sentiment_score=${an.sentimentScore ?? 0}, risk_score=${an.riskScore ?? 0}
+- strategy_hint=${an.strategy ?? ""}
+${a.kind === "image" && an.visualCues ? `- visual_cues=${an.visualCues}` : ""}
+${a.kind === "audio" && an.speakingPatterns ? `- speaking_patterns=${an.speakingPatterns}` : ""}
+${an.summary ? `- summary=${an.summary}` : ""}
+${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 1500)}"""` : ""}`;
+    }).join("\n\n") : "";
+
+    // The text actually sent to the model includes both the typed message and the
+    // synthesized attachment block. If user sent only an attachment, infer intent.
+    const composedUserMessage = [
+      message || (atts.length ? `[shared ${atts.map(a => a.kind).join(", ")} for emotional check-in — please respond to what you sense]` : ""),
+      attachmentContext ? `\n\n--- ATTACHMENT ANALYSIS (already processed; use as emotional context) ---\n${attachmentContext}` : "",
+    ].join("");
 
     // Resolve / create the active conversation
     let conversationId: string | null = incomingConvId ?? null;
