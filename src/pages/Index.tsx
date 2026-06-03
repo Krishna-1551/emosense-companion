@@ -294,21 +294,35 @@ const Index = () => {
 
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
-    if (!text || sending) return;
+    const ready = pendingAttachments.filter(a => !a.pending && a.analysis);
+    const stillPending = pendingAttachments.some(a => a.pending);
+    if (stillPending) { toast.message("Still analyzing attachment…"); return; }
+    if (!text && ready.length === 0) return;
+    if (sending) return;
     if (!override) setInput("");
     setSending(true);
     setLastActivity(new Date());
     setNudgeSent(false);
-    const userMsg: Msg = { role: "user", content: text };
-    setMessages(m => [...m, userMsg]);
+
+    // optimistic user bubble with attachment chips
+    const optimisticContent = text + (ready.length
+      ? `\n\n[[emosense-attachments:${JSON.stringify(ready.map(a => ({
+          kind: a.kind, filename: a.filename, mime: a.mime, ...a.analysis,
+        })))}]]`
+      : "");
+    setMessages(m => [...m, { role: "user", content: optimisticContent }]);
+    setPendingAttachments([]);
 
     try {
-      const priorMessages = messages.filter(m => m.id || m.role === "user"); // exclude the welcome placeholder
+      const priorMessages = messages.filter(m => m.id || m.role === "user");
       const { data, error } = await supabase.functions.invoke("chat", {
         body: {
           message: text,
           history: priorMessages.slice(-10),
           conversation_id: activeConversationId,
+          attachments: ready.map(a => ({
+            kind: a.kind, filename: a.filename, mime: a.mime, analysis: a.analysis,
+          })),
         },
       });
       if (error) throw error;
@@ -317,7 +331,6 @@ const Index = () => {
         setActiveConversationId(data.conversation_id);
       }
       setSidebarRefresh(n => n + 1);
-      // attach emotion to last user msg
       setMessages(m => {
         const copy = [...m];
         const lastUserIdx = copy.map(x => x.role).lastIndexOf("user");
