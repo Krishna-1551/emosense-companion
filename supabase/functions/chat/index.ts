@@ -194,7 +194,7 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
     }
 
     // Behavior signals — scoped to THIS conversation for context isolation
-    const messageLength = message.length;
+    const messageLength = composedUserMessage.length;
     const { data: recent } = await supabase
       .from("messages")
       .select("created_at, risk_level, sentiment, role")
