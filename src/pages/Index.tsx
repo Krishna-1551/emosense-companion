@@ -480,6 +480,13 @@ const Index = () => {
               )}
 
 
+              <div className="max-w-2xl mx-auto">
+                <AttachmentComposer
+                  attachments={pendingAttachments}
+                  onChange={setPendingAttachments}
+                  disabled={sending}
+                />
+              </div>
               <div className="max-w-2xl mx-auto flex gap-2">
                 <input
                   value={input}
@@ -492,7 +499,7 @@ const Index = () => {
                 />
                 <button
                   onClick={() => send()}
-                  disabled={sending || !input.trim()}
+                  disabled={sending || (!input.trim() && pendingAttachments.length === 0) || pendingAttachments.some(a => a.pending)}
                   className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center disabled:opacity-50 hover:scale-105 transition glow"
                   aria-label="Send"
                 >
