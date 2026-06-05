@@ -23,11 +23,12 @@ export const MoodDashboard = () => {
       setLogs(data ?? []);
     };
     load();
-    const ch = supabase.channel("mood")
+    const ch = supabase.channel(`mood-${user.id}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "mood_logs", filter: `user_id=eq.${user.id}` },
         (p) => setLogs(prev => [...prev, p.new as Log]))
       .subscribe();
     return () => { supabase.removeChannel(ch); };
+
   }, [user]);
 
   const data = logs.map((l, i) => ({
