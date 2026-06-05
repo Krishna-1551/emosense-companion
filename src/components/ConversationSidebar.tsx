@@ -90,9 +90,15 @@ export function ConversationSidebar({ userId, activeId, onSelect, onNew, refresh
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-3">
-      <Button onClick={onNew} className="w-full justify-start gap-2" size="sm">
+      <Button
+        onClick={(e) => { e.currentTarget.blur(); onNew(); }}
+        onTouchEnd={(e) => { (e.currentTarget as HTMLButtonElement).blur(); }}
+        className="w-full justify-start gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        size="sm"
+      >
         <Plus className="w-4 h-4" /> New chat
       </Button>
+
 
       <div className="relative">
         <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
