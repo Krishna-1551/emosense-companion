@@ -69,6 +69,25 @@ const Auth = () => {
           <p className="text-sm text-muted-foreground mt-1">A gentle space for your feelings</p>
         </div>
 
+        <div className="flex w-full rounded-xl bg-secondary/50 p-1 mb-6">
+          <Button
+            type="button"
+            variant={mode === "signin" ? "default" : "ghost"}
+            onClick={() => setMode("signin")}
+            className={`flex-1 rounded-lg text-sm font-medium transition-all ${mode === "signin" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Sign in
+          </Button>
+          <Button
+            type="button"
+            variant={mode === "signup" ? "default" : "ghost"}
+            onClick={() => setMode("signup")}
+            className={`flex-1 rounded-lg text-sm font-medium transition-all ${mode === "signup" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Create account
+          </Button>
+        </div>
+
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
