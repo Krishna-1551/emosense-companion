@@ -83,12 +83,6 @@ const Auth = () => {
           </Button>
         </form>
 
-        <button
-          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          className="w-full mt-6 text-sm text-muted-foreground hover:text-foreground transition"
-        >
-          {mode === "signin" ? "New here? Create an account" : "Already have an account? Sign in"}
-        </button>
       </Card>
     </div>
   );
