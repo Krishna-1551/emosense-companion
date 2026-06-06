@@ -540,7 +540,11 @@ ${evolutionBlock}
 Your last replies (DO NOT repeat their openers, sentence patterns, or closing questions):
 ${recentReplies || "(none yet)"}
 
-${bannedBlock}`;
+${bannedBlock}
+
+${questionLimitBlock}
+
+${solutionModeBlock}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
