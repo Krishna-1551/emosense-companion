@@ -257,6 +257,38 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
       .limit(5);
     const recentReplies = (lastAssistant || []).map((r: any) => `- "${r.content}"`).join("\n");
 
+    // Question-limit guard: if last 2 assistant replies already asked questions, suppress questions this turn.
+    const last2Assistant = (lastAssistant || []).slice(0, 2).map((r: any) => (r.content || "").trim());
+    const bothAskedQuestion = last2Assistant.length === 2 && last2Assistant.every(c => /\?/.test(c));
+    const questionLimitBlock = bothAskedQuestion
+      ? "QUESTION SUPPRESSION (HARD RULE FOR THIS TURN): Your previous 2 replies already asked questions. This reply MUST contain ZERO question marks. Give insight, validation, or a concrete small action instead. Do NOT end with a question."
+      : "QUESTION LIMIT: Maximum ONE '?' in this reply.";
+
+    // Solution-mode detection — user explicitly asking for practical help
+    const SOLUTION_TRIGGERS = [
+      /\bsolution\s*(batao|do|chahiye|de\s*do)\b/i,
+      /\bkya\s*kar(u|oon|na\s*chahiye)\b/i,
+      /\bab\s*kya\s*kar(u|oon|na)\b/i,
+      /\bpractical\s*(advice|help|tip)/i,
+      /\bseedha\s*batao\b/i,
+      /\bmujhe\s*(answer|jawab)\s*chahiye\b/i,
+      /\bhow\s*(do\s*i|to)\s*(fix|solve|deal)/i,
+      /\btell\s*me\s*what\s*to\s*do\b/i,
+      /\bjust\s*tell\s*me\b/i,
+      /\bgive\s*me\s*(steps|advice|a\s*solution)\b/i,
+      /\bwhat\s*should\s*i\s*do\b/i,
+      /\bnahi\s*solution\b/i,
+      /\bbas\s*solution\b/i,
+    ];
+    const solutionMode = SOLUTION_TRIGGERS.some(r => r.test(message));
+    const solutionModeBlock = solutionMode
+      ? `SOLUTION MODE ACTIVE (user explicitly asked for practical help):
+- DROP long empathy/motivational paragraphs. NO "aap bahadur hain", "aap mehnati hain", "sab theek ho jayega", "aapki mehnat lagan se...".
+- Structure: (A) 1-sentence acknowledgement, (B) direct insight (1 sentence), (C) 2–4 clear actionable steps as a short bullet/numbered list, (D) AT MOST one optional follow-up question (skip entirely if last 2 replies already asked questions).
+- Ratio ~10% empathy, 30% insight, 60% action. Prioritize solving over feeling.
+- Steps must be concrete (e.g. "25 min sirf ek subject, phir 5 min break"), not vague ("thoda focus karo").`
+      : "SOLUTION MODE: not triggered — use default support flow (40% empathy / 30% insight / 20% suggestion / 10% question).";
+
     // --- Phrase-repetition detection ---
     const REASSURANCE_PHRASES = [
       "aap theek ho jayenge","sab theek ho jayega","yeh phase temporary hai","aap akela feel na karein",
