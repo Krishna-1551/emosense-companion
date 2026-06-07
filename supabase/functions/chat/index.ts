@@ -675,12 +675,13 @@ ${solutionModeBlock}`;
     const storedUserContent = (message || (atts.length ? `(shared ${atts.map(a => a.kind).join(", ")})` : "")) + attachmentTag;
 
     // Save both messages + mood log (scoped to this conversation)
-    await supabase.from("messages").insert([
+    const { data: insertedMsgs } = await supabase.from("messages").insert([
       { user_id: user.id, conversation_id: conversationId, role: "user", content: storedUserContent, message_length: messageLength,
         emotion: args.emotion, sentiment: args.sentiment, risk_level: args.risk_level,
         response_delay_seconds: responseDelaySec },
       { user_id: user.id, conversation_id: conversationId, role: "assistant", content: args.reply, message_length: args.reply.length },
-    ]);
+    ]).select("id, role");
+    const assistantMsgId = insertedMsgs?.find((m: any) => m.role === "assistant")?.id ?? null;
 
     // Auto-title from the first user message if title is empty
     if (!conversationTitle) {
@@ -696,6 +697,37 @@ ${solutionModeBlock}`;
       sentiment_score: args.sentiment_score,
       risk_level: args.risk_level,
     });
+
+    // --- Reply analytics: log emotion, solution mode, question count, repetition score ---
+    try {
+      const replyText = String(args.reply || "");
+      const questionCount = (replyText.match(/\?/g) || []).length;
+      const tokenize = (s: string) =>
+        new Set(norm(s).split(" ").filter(w => w.length >= 4));
+      const newTokens = tokenize(replyText);
+      let repetitionScore = 0;
+      if (newTokens.size > 0 && recentNorm.length > 0) {
+        const priorTokens = new Set<string>();
+        for (const t of recentNorm) for (const w of tokenize(t)) priorTokens.add(w);
+        let shared = 0;
+        for (const w of newTokens) if (priorTokens.has(w)) shared++;
+        repetitionScore = Math.min(1, shared / newTokens.size);
+      }
+      await supabase.from("reply_analytics").insert({
+        user_id: user.id,
+        conversation_id: conversationId,
+        message_id: assistantMsgId,
+        emotion: args.emotion ?? null,
+        solution_mode: solutionMode,
+        question_count: questionCount,
+        repetition_score: Number(repetitionScore.toFixed(3)),
+        language: userLang,
+        reply_length: replyText.length,
+      });
+    } catch (analyticsErr) {
+      console.error("reply_analytics insert failed", analyticsErr);
+    }
+
 
     // --- Self-Evolving: update learning profile (best-effort, non-blocking semantics) ---
     try {
