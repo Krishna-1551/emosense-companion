@@ -226,6 +226,48 @@ export type Database = {
         }
         Relationships: []
       }
+      reply_analytics: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          emotion: string | null
+          id: string
+          language: string | null
+          message_id: string | null
+          question_count: number
+          repetition_score: number
+          reply_length: number | null
+          solution_mode: boolean
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          emotion?: string | null
+          id?: string
+          language?: string | null
+          message_id?: string | null
+          question_count?: number
+          repetition_score?: number
+          reply_length?: number | null
+          solution_mode?: boolean
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          emotion?: string | null
+          id?: string
+          language?: string | null
+          message_id?: string | null
+          question_count?: number
+          repetition_score?: number
+          reply_length?: number | null
+          solution_mode?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       support_messages: {
         Row: {
           content: string
