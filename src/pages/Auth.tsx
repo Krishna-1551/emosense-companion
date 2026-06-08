@@ -115,6 +115,16 @@ const Auth = () => {
           </Button>
         </form>
 
+        <button
+          type="button"
+          onClick={() => {
+            try { localStorage.removeItem(ONBOARDING_KEY); } catch {}
+            nav("/welcome");
+          }}
+          className="mt-6 w-full text-xs text-muted-foreground hover:text-foreground transition"
+        >
+          Replay introduction
+        </button>
       </Card>
     </div>
   );
