@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import emosenseLogo from "@/assets/emosense-logo.png";
+import { ONBOARDING_KEY } from "./Onboarding";
 
 const schema = z.object({
   email: z.string().trim().email("Enter a valid email").max(255),
@@ -18,10 +19,22 @@ const schema = z.object({
 const Auth = () => {
   const { user, loading } = useAuth();
   const nav = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState<"signin" | "signup">(
+    params.get("mode") === "signup" ? "signup" : "signin",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // First-time visitors: show onboarding before auth
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(ONBOARDING_KEY)) {
+        nav("/welcome", { replace: true });
+      }
+    } catch {}
+  }, [nav]);
 
   useEffect(() => { if (!loading && user) nav("/", { replace: true }); }, [user, loading, nav]);
 
