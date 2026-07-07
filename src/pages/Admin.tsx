@@ -285,6 +285,9 @@ const Admin = () => {
         />
       </div>
 
+      {/* AI Improvement Suggestions panel */}
+      <AdminSuggestionsPanel />
+
       {/* AI Insight box */}
       <Card className="p-4 border-primary/30 bg-gradient-to-br from-primary/5 to-accent/5">
         <div className="flex items-start gap-3">
