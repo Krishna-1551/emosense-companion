@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { SupportThread } from "@/components/SupportThread";
 import { AdminMoodTimeline } from "@/components/AdminMoodTimeline";
+import { AdminSuggestionsPanel } from "@/components/AdminSuggestionsPanel";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend, CartesianGrid, ReferenceDot,
 } from "recharts";
