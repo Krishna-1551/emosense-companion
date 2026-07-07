@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 import { SupportThread } from "@/components/SupportThread";
 import { AdminMoodTimeline } from "@/components/AdminMoodTimeline";
+import { AdminSuggestionsPanel } from "@/components/AdminSuggestionsPanel";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend, CartesianGrid, ReferenceDot,
 } from "recharts";
@@ -283,6 +284,9 @@ const Admin = () => {
           emptyText="No panic events"
         />
       </div>
+
+      {/* AI Improvement Suggestions panel */}
+      <AdminSuggestionsPanel />
 
       {/* AI Insight box */}
       <Card className="p-4 border-primary/30 bg-gradient-to-br from-primary/5 to-accent/5">
