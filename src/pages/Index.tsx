@@ -488,10 +488,18 @@ const Index = () => {
               />
             ))}
             {sending && (
-              <div className="flex gap-1.5 px-4">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" style={{ animationDelay: "0.2s" }} />
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" style={{ animationDelay: "0.4s" }} />
+              <div className="flex items-center gap-2 animate-float-up">
+                <div className="shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-primary/80 to-accent/80 flex items-center justify-center soft-shadow">
+                  <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
+                </div>
+                <div className="rounded-2xl rounded-bl-sm bg-card/60 border border-border/50 px-3.5 py-2.5 flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground italic">EmoSense is listening</span>
+                  <span className="flex gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-pulse" style={{ animationDelay: "0.2s" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-pulse" style={{ animationDelay: "0.4s" }} />
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -523,20 +531,22 @@ const Index = () => {
                   disabled={sending}
                 />
               </div>
-              <div className="max-w-2xl mx-auto flex gap-2">
-                <input
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-                  placeholder="Share what's on your mind…"
-                  className="flex-1 bg-secondary/60 border border-border/50 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition"
-                  disabled={sending}
-                  maxLength={2000}
-                />
+              <div className="max-w-2xl mx-auto flex gap-2 items-end">
+                <div className="flex-1 relative group">
+                  <input
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                    placeholder="Share what's on your mind…"
+                    className="w-full bg-secondary/60 border border-border/50 rounded-full pl-5 pr-4 py-3 text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 focus:bg-secondary/80 transition-all"
+                    disabled={sending}
+                    maxLength={2000}
+                  />
+                </div>
                 <button
                   onClick={() => send()}
                   disabled={sending || (!input.trim() && pendingAttachments.length === 0) || pendingAttachments.some(a => a.pending)}
-                  className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center disabled:opacity-50 hover:scale-105 transition glow"
+                  className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center disabled:opacity-40 disabled:hover:scale-100 hover:scale-105 active:scale-95 transition-all glow shrink-0"
                   aria-label="Send"
                 >
                   <Send className="w-4 h-4" />
