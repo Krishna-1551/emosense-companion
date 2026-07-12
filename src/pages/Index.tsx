@@ -46,6 +46,17 @@ const Index = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("emosense_sidebar_collapsed") === "1";
+  });
+  const toggleDesktopSidebar = () => {
+    setDesktopSidebarCollapsed(v => {
+      const next = !v;
+      localStorage.setItem("emosense_sidebar_collapsed", next ? "1" : "0");
+      return next;
+    });
+  };
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const insight = useDismissible("emosense_insight_dismissed");
   const scrollerRef = useRef<HTMLDivElement>(null);
