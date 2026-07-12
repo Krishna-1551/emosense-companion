@@ -415,7 +415,7 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:w-80 lg:h-screen lg:sticky lg:top-0 p-4 lg:p-6 border-b lg:border-b-0 lg:border-r border-border/50 bg-card/30 backdrop-blur">
+      <aside className="hidden lg:flex lg:w-80 lg:h-screen lg:sticky lg:top-0 lg:overflow-y-auto p-4 lg:p-6 border-b lg:border-b-0 lg:border-r border-border/50 bg-card/30 backdrop-blur z-10">
         {sidebarContent}
       </aside>
 
