@@ -382,13 +382,23 @@ const Index = () => {
   const sidebarContent = (
     <div className="flex flex-col h-full gap-4 min-h-0">
       <div className="flex items-center gap-3">
-        <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center pulse-ring">
+        <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center pulse-ring shrink-0">
           <Sparkles className="w-5 h-5 text-primary-foreground" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-lg font-semibold leading-none gradient-text">EmoSense AI</h1>
           <p className="text-xs text-muted-foreground mt-0.5">Your gentle companion</p>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleDesktopSidebar}
+          className="hidden lg:inline-flex h-8 w-8 shrink-0"
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+        >
+          <PanelLeftClose className="w-4 h-4" />
+        </Button>
       </div>
 
       <div className="flex-1 min-h-0">
@@ -426,9 +436,24 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:w-80 lg:h-screen lg:sticky lg:top-0 lg:overflow-y-auto p-4 lg:p-6 border-b lg:border-b-0 lg:border-r border-border/50 bg-card/30 backdrop-blur z-10">
-        {sidebarContent}
-      </aside>
+      {!desktopSidebarCollapsed && (
+        <aside className="hidden lg:flex lg:w-80 lg:h-screen lg:sticky lg:top-0 lg:overflow-y-auto p-4 lg:p-6 border-b lg:border-b-0 lg:border-r border-border/50 bg-card/30 backdrop-blur z-10">
+          {sidebarContent}
+        </aside>
+      )}
+
+      {/* Desktop expand button when collapsed */}
+      {desktopSidebarCollapsed && (
+        <button
+          onClick={toggleDesktopSidebar}
+          className="hidden lg:flex fixed top-4 left-4 z-30 items-center gap-2 px-3 py-2 rounded-full bg-card/80 backdrop-blur border border-border/50 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition shadow-lg"
+          aria-label="Open sidebar"
+          title="Open sidebar"
+        >
+          <PanelLeftOpen className="w-4 h-4" />
+          <span>Chats</span>
+        </button>
+      )}
 
       {/* Mobile top bar with sheet trigger */}
       <div className="lg:hidden flex items-center gap-2 p-3 border-b border-border/50 bg-card/30 backdrop-blur sticky top-0 z-20">
