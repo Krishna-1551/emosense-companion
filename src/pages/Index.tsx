@@ -12,7 +12,7 @@ import { ConnectInbox } from "@/components/ConnectInbox";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { AttachmentComposer, PendingAttachment } from "@/components/AttachmentComposer";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Send, LogOut, Shield, Menu } from "lucide-react";
+import { Sparkles, Send, LogOut, Shield, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
