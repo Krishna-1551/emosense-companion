@@ -1,63 +1,62 @@
-# Multimodal Emotional Analysis Plan
+# EmoSense Evolution Engine — Implementation Plan
 
-Add voice, image, and document inputs to the EmoSense chat. Each input is transcribed/extracted server-side, then analyzed by the same emotional engine that already handles text — keeping language detection (Hindi/Hinglish/English), emotion, intensity, sentiment, and risk consistent across modalities.
+Per your "preserve existing system" rule, this is **purely additive**. Nothing existing changes behavior; the Evolution Engine lives at `/admin/evolution` as a new module, reads from existing tables, and writes only to new tables. Fully disable-able by hiding the route.
 
-## Backend
+Given scope, I'll ship this in **3 phases**. Please approve Phase 1 first; Phase 2/3 build on it.
 
-### New edge function: `ingest-attachment`
-- Accepts a single attachment per call: `{ kind: "image" | "audio" | "document", filename, mime, base64 }`.
-- Routes by kind:
-  - **Image** → Lovable AI Gateway (`google/gemini-2.5-flash`, multimodal): OCR all visible text + describe visible emotional cues (facial expression, posture, scene mood). Returns `extractedText` + `visualCues`.
-  - **Audio** (webm/mp3/wav/m4a) → Lovable AI Gateway STT-capable model (`google/gemini-2.5-flash` with inline audio) for Hindi/Hinglish/English transcription + speaking-pattern hints (hesitation, urgency, intensity).
-  - **Document**:
-    - `text/plain` → decode base64 directly.
-    - `application/pdf` → use `npm:unpdf` (pure JS, Deno-compatible) to extract text.
-    - `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (DOCX) → use `npm:mammoth` to extract raw text.
-    - `.doc` legacy → not supported, return friendly error asking for DOCX/PDF.
-    - Then summarize key points + emotional patterns via Lovable AI.
-- Returns a structured JSON: `{ extractedText, summary, language, emotion, intensity, sentimentScore, riskScore, visualCues?, speakingPatterns?, strategy }`.
+---
 
-### Update `chat` edge function
-- Accept optional `attachments: AttachmentAnalysis[]` in body.
-- Prepend a synthesized context block to the user message before sending to model:
-  ```
-  [User shared a <kind> "<filename>"]
-  Extracted: ...
-  Summary: ...
-  Visual cues / Speaking patterns: ...
-  Detected language: ..., emotion: ..., intensity: ...
-  ```
-- Reuse existing language detection, repetition guards, time-aware, evolution blocks. The combined emotion (text + attachment) feeds the same emotion/risk pipeline.
-- Persist attachment metadata as part of the saved user message content (so it appears in history and bumps `recurring_topics`).
+## Phase 1 — Foundation + Recommendation Center + Dashboard (MVP)
 
-## Frontend
+Covers Modules 1 (Observation, read-only), 5 (Improvement Detector), 6 (Recommendation Center), 9 (Evolution Dashboard), 12 (Safe Evolution — enforced), 13 (Version History), 14 (Security).
 
-### Composer additions in `src/pages/Index.tsx`
-- Add three small icon buttons next to the input: **Mic** (record), **Image** (upload), **Paperclip** (PDF/DOC/TXT).
-- Hidden `<input type="file" accept=...>` per type. Use `MediaRecorder` API for voice (webm/opus).
-- On selection: convert to base64, call `supabase.functions.invoke("ingest-attachment", ...)`, show a pending chip with filename + spinner.
-- When analysis returns, attach it to the next `send()` call as `attachments: [analysis]`. The user's bubble shows: filename + detected emotion/intensity chip.
+### New DB tables (all admin-only via RLS + `has_role('admin')`)
+- `evolution_recommendations` — title, description, problem, proposed_solution, benefits, difficulty, time_estimate, risk_level, dependencies (jsonb), implementation_plan (md), category, status (`pending|approved|rejected|archived|implemented`), source (`detector|research|advisor|manual`), metrics_snapshot (jsonb), created_at, decided_at, decided_by, decision_notes.
+- `evolution_decisions` — full audit log of every approve/reject/archive with prior + new status, admin id, reason. Immutable by RLS.
+- `evolution_observations` — hourly rollups: active_users, msg_count, avg_latency_ms, ai_error_rate, high_risk_count, avg_repetition, avg_questions, solution_mode_pct. Computed by scheduled function.
+- `evolution_health_snapshots` — daily system health + evolution score, KPIs jsonb.
 
-### Voice recording
-- Inline recorder: click Mic → records → click Stop → uploads. Show waveform/level via simple animated bar.
-- Limit 60s max.
+All follow the project's GRANT + RLS pattern. No changes to existing tables.
 
-### New component
-- `src/components/AttachmentComposer.tsx`: encapsulates file picker buttons, recorder, base64 conversion, and emits `onReady(analysis)`.
-- `src/components/AttachmentChip.tsx`: renders attached file pill in the message bubble.
+### New edge functions
+- `evolution-observe` (scheduled hourly via pg_cron): aggregates from existing `messages`, `reply_analytics`, `mood_logs`, `profiles` → writes one row to `evolution_observations`. Read-only against production tables.
+- `evolution-detect` (scheduled every 6h + manual trigger): scans recent observations + reply_analytics for anomalies (latency spikes, repetition rising, question-count creep, risk-handling gaps, unused features via zero-usage detection) and drafts `evolution_recommendations` rows in `pending` status. Reuses the existing `admin-suggestions` prompt style.
+- `evolution-decide` (admin-only): approve / reject / archive a recommendation; writes to `evolution_decisions`.
+- `evolution-health`: on-demand system health + evolution score computation, cached daily.
 
-## Storage (optional, light)
-- Skip Supabase Storage for now — keep files transient; only the extracted analysis is persisted in `messages.content` (as a JSON-tagged block) and in `user_learning_profile.recurring_topics`. This keeps scope focused on emotional analysis, not file hosting.
+### New admin route & UI (`/admin/evolution`)
+- Sub-tab in existing `Admin.tsx` (no route rename) — new nav entry only.
+- **Evolution Dashboard**: glassmorphism cards for System Health, Evolution Score, Learning Progress (from `user_learning_profile` count), Suggestions Approved/Rejected, Avg Repetition, Latency Trends, Feature Usage, active users. Recharts line/area charts on `evolution_observations`.
+- **Recommendation Center**: card grid with priority + area + effort chips (reuses `AdminSuggestionsPanel` styling), full expandable detail, Approve / Reject / Archive buttons → calls `evolution-decide`.
+- **Version History**: chronological list from `evolution_decisions`.
+- Dark theme + neon cyan/blue accents, respecting existing design tokens (no hardcoded colors).
 
-## Output per input
-Every attachment produces (and is shown in UI + stored):
-- `language`, `emotion`, `intensity` (Low/Medium/High), `sentimentScore` (-1..1), `riskScore` (0..100), `strategy`, plus modality-specific `visualCues` or `speakingPatterns`.
+### Safety guarantees
+- Every function is read-only against existing tables.
+- No auto-implementation anywhere — `evolution-decide` only mutates the recommendation's own status + audit log.
+- Existing `admin-suggestions` panel stays untouched; Evolution Recommendation Center is a superset that can eventually replace it, but both coexist for now.
 
-## Files
-- **New**: `supabase/functions/ingest-attachment/index.ts`
-- **New**: `src/components/AttachmentComposer.tsx`, `src/components/AttachmentChip.tsx`
-- **Edit**: `supabase/functions/chat/index.ts` (accept attachments, merge into prompt + emotion pipeline)
-- **Edit**: `src/pages/Index.tsx` (wire composer + render attachment chips)
-- **Edit**: `src/components/MessageBubble.tsx` (render attachment metadata if present)
+---
 
-No DB migration needed — attachment analysis lives inside existing `messages.content` as a structured prefix the UI parses out.
+## Phase 2 — Research Agent + Model Comparison + AI Advisor
+Modules 3, 4, 11. Adds:
+- `evolution_research_findings` table + `evolution-research` function that uses Lovable AI + web fetch on the whitelisted public sources you listed, summarizes into recommendations.
+- `evolution_model_registry` table (manually seeded + AI-enriched) with comparison view.
+- Floating "AI Advisor" bubble on admin pages that surfaces the top pending high-priority recommendation with a proactive one-liner.
+
+## Phase 3 — Learning Engine + Knowledge Base + Digital Memory
+Modules 2, 8, 10. Adds:
+- `evolution_knowledge` table (searchable, categorized, full-text index).
+- `evolution_memory` table for long-term decision memory feeding future detector prompts (closes the learning loop — approved/rejected patterns bias future suggestions).
+
+---
+
+## What stays exactly the same
+- Chat flow, `chat` edge function, prompts, language logic, solution engine, attachments, onboarding, auth, sidebar, MoodDashboard, existing `admin-suggestions` panel.
+- No renames. No removed files. No modified existing migrations.
+- All new UI is behind the admin role check that already exists.
+
+---
+
+## Approval requested
+Reply **"approve phase 1"** and I'll ship Phase 1 in one pass. Or tell me which modules to reprioritize. If you want the entire thing (Phases 1–3) in one go, say **"ship all phases"** — it will be a large batch of files but same safety guarantees.
