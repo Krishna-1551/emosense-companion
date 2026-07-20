@@ -77,6 +77,197 @@ export type Database = {
         }
         Relationships: []
       }
+      evolution_decisions: {
+        Row: {
+          admin_id: string | null
+          created_at: string
+          id: string
+          new_status: string
+          prior_status: string
+          reason: string | null
+          recommendation_id: string
+        }
+        Insert: {
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          new_status: string
+          prior_status: string
+          reason?: string | null
+          recommendation_id: string
+        }
+        Update: {
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          new_status?: string
+          prior_status?: string
+          reason?: string | null
+          recommendation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evolution_decisions_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "evolution_recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evolution_health_snapshots: {
+        Row: {
+          created_at: string
+          evolution_score: number
+          health_score: number
+          id: string
+          kpis: Json
+          notes: string | null
+          snapshot_date: string
+        }
+        Insert: {
+          created_at?: string
+          evolution_score?: number
+          health_score?: number
+          id?: string
+          kpis?: Json
+          notes?: string | null
+          snapshot_date: string
+        }
+        Update: {
+          created_at?: string
+          evolution_score?: number
+          health_score?: number
+          id?: string
+          kpis?: Json
+          notes?: string | null
+          snapshot_date?: string
+        }
+        Relationships: []
+      }
+      evolution_observations: {
+        Row: {
+          active_users: number
+          ai_reply_count: number
+          avg_questions: number
+          avg_repetition: number
+          bucket_start: string
+          created_at: string
+          emotion_distribution: Json
+          extras: Json
+          high_risk_count: number
+          id: string
+          language_distribution: Json
+          message_count: number
+          solution_mode_pct: number
+        }
+        Insert: {
+          active_users?: number
+          ai_reply_count?: number
+          avg_questions?: number
+          avg_repetition?: number
+          bucket_start: string
+          created_at?: string
+          emotion_distribution?: Json
+          extras?: Json
+          high_risk_count?: number
+          id?: string
+          language_distribution?: Json
+          message_count?: number
+          solution_mode_pct?: number
+        }
+        Update: {
+          active_users?: number
+          ai_reply_count?: number
+          avg_questions?: number
+          avg_repetition?: number
+          bucket_start?: string
+          created_at?: string
+          emotion_distribution?: Json
+          extras?: Json
+          high_risk_count?: number
+          id?: string
+          language_distribution?: Json
+          message_count?: number
+          solution_mode_pct?: number
+        }
+        Relationships: []
+      }
+      evolution_recommendations: {
+        Row: {
+          area: string
+          benefits: string | null
+          category: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_notes: string | null
+          dependencies: Json
+          description: string
+          difficulty: string
+          id: string
+          implementation_plan: string | null
+          metrics_snapshot: Json
+          priority: string
+          problem: string | null
+          proposed_solution: string | null
+          risk_level: string
+          source: string
+          status: string
+          time_estimate: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          area?: string
+          benefits?: string | null
+          category?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_notes?: string | null
+          dependencies?: Json
+          description: string
+          difficulty?: string
+          id?: string
+          implementation_plan?: string | null
+          metrics_snapshot?: Json
+          priority?: string
+          problem?: string | null
+          proposed_solution?: string | null
+          risk_level?: string
+          source?: string
+          status?: string
+          time_estimate?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          benefits?: string | null
+          category?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_notes?: string | null
+          dependencies?: Json
+          description?: string
+          difficulty?: string
+          id?: string
+          implementation_plan?: string | null
+          metrics_snapshot?: Json
+          priority?: string
+          problem?: string | null
+          proposed_solution?: string | null
+          risk_level?: string
+          source?: string
+          status?: string
+          time_estimate?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string
