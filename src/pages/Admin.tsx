@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { SupportThread } from "@/components/SupportThread";
 import { AdminMoodTimeline } from "@/components/AdminMoodTimeline";
 import { AdminSuggestionsPanel } from "@/components/AdminSuggestionsPanel";
+import { EvolutionEngine } from "@/components/EvolutionEngine";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend, CartesianGrid, ReferenceDot,
 } from "recharts";
@@ -284,6 +285,9 @@ const Admin = () => {
           emptyText="No panic events"
         />
       </div>
+
+      {/* Evolution Engine — JARVIS-inspired autonomous product intelligence */}
+      <EvolutionEngine />
 
       {/* AI Improvement Suggestions panel */}
       <AdminSuggestionsPanel />
