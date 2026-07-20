@@ -286,6 +286,9 @@ const Admin = () => {
         />
       </div>
 
+      {/* Evolution Engine — JARVIS-inspired autonomous product intelligence */}
+      <EvolutionEngine />
+
       {/* AI Improvement Suggestions panel */}
       <AdminSuggestionsPanel />
 
