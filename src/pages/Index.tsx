@@ -9,6 +9,7 @@ import { MoodDashboard } from "@/components/MoodDashboard";
 import { OnboardingForm } from "@/components/OnboardingForm";
 import { EmotionMeter, PrivacyBadge, InsightBubble, deriveMeter, useDismissible } from "@/components/EngagementExtras";
 import { ConnectInbox } from "@/components/ConnectInbox";
+import { CrisisResourceCard } from "@/components/CrisisResourceCard";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { AttachmentComposer, PendingAttachment } from "@/components/AttachmentComposer";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ const Index = () => {
   };
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const insight = useDismissible("emosense_insight_dismissed");
+  const [crisisDismissedFor, setCrisisDismissedFor] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   // On login: pick most recent conversation (or start a fresh one implicitly on first send)
@@ -509,8 +511,18 @@ const Index = () => {
           const meter = deriveMeter(messages.map(m => m.emotion));
           const userMsgCount = messages.filter(m => m.role === "user").length;
           const showInsight = userMsgCount >= 4 && !insight.dismissed;
+          const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+          const highRiskActive = (lastUserMsg?.risk_level ?? "").toLowerCase() === "high";
+          const crisisKey = activeConversationId ?? "new";
+          const showCrisis = highRiskActive && crisisDismissedFor !== crisisKey;
           return (
             <div className="p-3 lg:p-4 border-t border-border/50 bg-card/40 backdrop-blur space-y-3">
+              {showCrisis && (
+                <div className="max-w-2xl mx-auto">
+                  <CrisisResourceCard trustedContact={contact} onDismiss={() => setCrisisDismissedFor(crisisKey)} />
+                </div>
+              )}
+
               <div className="max-w-2xl mx-auto flex justify-center">
                 <PrivacyBadge />
               </div>
@@ -522,6 +534,8 @@ const Index = () => {
               {showInsight && (
                 <InsightBubble level={meter} onDismiss={insight.dismiss} />
               )}
+
+
 
 
               <div className="max-w-2xl mx-auto">
