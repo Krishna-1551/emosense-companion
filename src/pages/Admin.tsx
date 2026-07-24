@@ -602,8 +602,20 @@ const Admin = () => {
                       ? <Badge variant="destructive" className="text-[10px]">{u.recent_high_risk}</Badge>
                       : <span className="text-xs text-muted-foreground">0</span>}
                   </td>
-                  <td className="py-2 text-right">
+                  <td className="py-2 text-right whitespace-nowrap">
                     <Button size="sm" variant="ghost" onClick={() => setSelected(u)}>View</Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => downloadReport(u)}
+                      disabled={reportingId === u.user_id}
+                      title="Generate therapist report (PDF)"
+                    >
+                      {reportingId === u.user_id
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <FileText className="w-3.5 h-3.5 mr-1" />}
+                      Report
+                    </Button>
                   </td>
                 </tr>
               ))}
