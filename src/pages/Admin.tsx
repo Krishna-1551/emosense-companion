@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Shield, AlertTriangle, Users, MessageSquare, Activity, ArrowLeft,
   UserPlus, MessageCircle, Lock, TrendingUp, TrendingDown, Sparkles,
-  CheckCircle2, MailCheck, Clock, Bell, X
+  CheckCircle2, MailCheck, Clock, Bell, X, FileText, Loader2
 } from "lucide-react";
+import { generateTherapistReport } from "@/lib/therapistReport";
 import { toast } from "sonner";
 import { SupportThread } from "@/components/SupportThread";
 import { AdminMoodTimeline } from "@/components/AdminMoodTimeline";
