@@ -92,6 +92,19 @@ const Admin = () => {
   const [showOnlyOpen, setShowOnlyOpen] = useState(true);
   const [smartAlert, setSmartAlert] = useState<{ id: string; excerpt: string } | null>(null);
   const [, forceTick] = useState(0);
+  const [reportingId, setReportingId] = useState<string | null>(null);
+
+  const downloadReport = async (u: UserRow) => {
+    setReportingId(u.user_id);
+    try {
+      await generateTherapistReport(u.user_id, u.display_name ?? u.user_id.slice(0, 8));
+      toast.success("Therapist report generated");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to generate report");
+    } finally {
+      setReportingId(null);
+    }
+  };
 
   // periodic re-render so "time ago" updates
   useEffect(() => { const t = setInterval(() => forceTick(x => x + 1), 30000); return () => clearInterval(t); }, []);
