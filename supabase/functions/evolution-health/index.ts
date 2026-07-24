@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       health_score: healthScore,
       evolution_score: evolutionScore,
       kpis,
-      observations: obs || [],
+      observations,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("evolution-health error", e);
