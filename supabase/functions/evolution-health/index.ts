@@ -24,13 +24,51 @@ Deno.serve(async (req) => {
     if (!isAdmin) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const since = new Date(Date.now() - 7 * 86400_000).toISOString();
-    const [{ data: overview }, { data: analytics }, { data: recs }, { data: decisions }, { data: obs }] = await Promise.all([
+    const [{ data: overview }, { data: analytics }, { data: recs }, { data: decisions }, { data: obs }, { data: msgs7 }, { data: analytics7 }] = await Promise.all([
       supabase.rpc("admin_overview"),
       supabase.from("reply_analytics").select("repetition_score, question_count, solution_mode").gte("created_at", since).limit(2000),
       supabase.from("evolution_recommendations").select("status"),
       supabase.from("evolution_decisions").select("new_status, created_at").gte("created_at", since),
       supabase.from("evolution_observations").select("bucket_start, active_users, message_count, avg_repetition, avg_questions, high_risk_count, solution_mode_pct").gte("bucket_start", since).order("bucket_start", { ascending: true }),
+      supabase.from("messages").select("user_id, role, risk_level, created_at").gte("created_at", since).limit(10000),
+      supabase.from("reply_analytics").select("repetition_score, question_count, solution_mode, created_at").gte("created_at", since).limit(10000),
     ]);
+
+    // If no pre-aggregated observations, compute daily buckets on the fly
+    let observations = obs || [];
+    if (observations.length === 0) {
+      const buckets: Record<string, any> = {};
+      const dayKey = (iso: string) => {
+        const d = new Date(iso);
+        return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString();
+      };
+      for (const m of (msgs7 || []) as any[]) {
+        const k = dayKey(m.created_at);
+        const b = buckets[k] ||= { bucket_start: k, users: new Set(), message_count: 0, high_risk_count: 0, _rep: [], _q: [], _sol: 0, _solTotal: 0 };
+        b.users.add(m.user_id);
+        b.message_count++;
+        if (m.risk_level === "high") b.high_risk_count++;
+      }
+      for (const r of (analytics7 || []) as any[]) {
+        const k = dayKey(r.created_at);
+        const b = buckets[k] ||= { bucket_start: k, users: new Set(), message_count: 0, high_risk_count: 0, _rep: [], _q: [], _sol: 0, _solTotal: 0 };
+        b._rep.push(Number(r.repetition_score) || 0);
+        b._q.push(Number(r.question_count) || 0);
+        b._solTotal++;
+        if (r.solution_mode) b._sol++;
+      }
+      observations = Object.values(buckets)
+        .map((b: any) => ({
+          bucket_start: b.bucket_start,
+          active_users: b.users.size,
+          message_count: b.message_count,
+          avg_repetition: b._rep.length ? b._rep.reduce((s: number, x: number) => s + x, 0) / b._rep.length : 0,
+          avg_questions: b._q.length ? b._q.reduce((s: number, x: number) => s + x, 0) / b._q.length : 0,
+          high_risk_count: b.high_risk_count,
+          solution_mode_pct: b._solTotal ? (b._sol / b._solTotal) * 100 : 0,
+        }))
+        .sort((a: any, b: any) => a.bucket_start.localeCompare(b.bucket_start));
+    }
 
     const a = analytics || [];
     const avg = (arr: number[]) => arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0;
@@ -71,7 +109,7 @@ Deno.serve(async (req) => {
       health_score: healthScore,
       evolution_score: evolutionScore,
       kpis,
-      observations: obs || [],
+      observations,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("evolution-health error", e);
