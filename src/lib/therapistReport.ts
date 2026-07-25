@@ -3,16 +3,10 @@ import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import logoUrl from "@/assets/emosense-logo.png";
 
-type TimelineRow = {
-  created_at: string;
-  emotion: string;
-  sentiment_score: number | null;
-  risk_level: string;
-};
-
-const BRAND = { r: 124, g: 58, b: 237 }; // purple-600
-const ACCENT = { r: 34, g: 211, b: 238 }; // cyan-400
+const BRAND = { r: 124, g: 58, b: 237 };
+const ACCENT = { r: 34, g: 211, b: 238 };
 const MUTED = { r: 120, g: 120, b: 130 };
+const DANGER = { r: 190, g: 40, b: 60 };
 
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
@@ -24,9 +18,7 @@ async function loadLogoDataUrl(): Promise<string | null> {
       r.onerror = () => resolve(null);
       r.readAsDataURL(blob);
     });
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 function fmt(iso: string | null | undefined) {
@@ -34,209 +26,178 @@ function fmt(iso: string | null | undefined) {
   return new Date(iso).toLocaleString();
 }
 
-function pct(n: number) {
-  return `${Math.round(n * 100)}%`;
-}
-
-function classifyTrend(rows: TimelineRow[]): {
-  trend: string;
-  avg: number;
-  volatility: number;
-} {
-  const scored = rows.filter((r) => r.sentiment_score != null);
-  if (scored.length < 2) return { trend: "Insufficient data", avg: 0, volatility: 0 };
-  const vals = scored.map((r) => Number(r.sentiment_score));
-  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-  const half = Math.floor(vals.length / 2);
-  const first = vals.slice(0, half).reduce((a, b) => a + b, 0) / Math.max(1, half);
-  const last = vals.slice(half).reduce((a, b) => a + b, 0) / Math.max(1, vals.length - half);
-  const delta = last - first;
-  const variance = vals.reduce((s, v) => s + (v - avg) ** 2, 0) / vals.length;
-  const volatility = Math.sqrt(variance);
-  let trend = "Stable";
-  if (delta > 0.15) trend = "Improving";
-  else if (delta < -0.15) trend = "Declining";
-  return { trend, avg, volatility };
-}
+const RISK_COLOR: Record<string, [number, number, number]> = {
+  low: [60, 140, 90],
+  moderate: [200, 150, 40],
+  elevated: [210, 110, 40],
+  high: [190, 60, 60],
+  acute: [140, 30, 40],
+};
 
 export async function generateTherapistReport(userId: string, displayName: string) {
-  // Fetch data in parallel
-  const [profileRes, timelineRes, msgCountsRes, flaggedRes, analyticsRes] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
-    supabase.rpc("admin_user_timeline", { target: userId, days: 90 }),
-    supabase.from("messages").select("id, role, risk_level, created_at", { count: "exact" }).eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
-    supabase.from("messages").select("content, emotion, risk_level, created_at").eq("user_id", userId).eq("role", "user").in("risk_level", ["high", "moderate"]).order("created_at", { ascending: false }).limit(6),
-    supabase.from("reply_analytics").select("emotion, solution_mode, question_count, repetition_score, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
-  ]);
-
-  const profile: any = profileRes.data || {};
-  const timeline: TimelineRow[] = (timelineRes.data as any) || [];
-  const messages: any[] = (msgCountsRes.data as any) || [];
-  const flagged: any[] = (flaggedRes.data as any) || [];
-  const analytics: any[] = (analyticsRes.data as any) || [];
-
-  const userMsgs = messages.filter((m) => m.role === "user");
-  const highCount = userMsgs.filter((m) => m.risk_level === "high").length;
-  const modCount = userMsgs.filter((m) => m.risk_level === "moderate").length;
-
-  const emotionCounts: Record<string, number> = {};
-  timeline.forEach((t) => {
-    const key = (t.emotion || "unknown").toLowerCase();
-    emotionCounts[key] = (emotionCounts[key] || 0) + 1;
+  const { data, error } = await supabase.functions.invoke("therapist-report", {
+    body: { user_id: userId },
   });
-  const dominantEmotions = Object.entries(emotionCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  if (error || !data || (data as any).error) {
+    throw new Error((data as any)?.error || error?.message || "Failed to generate report");
+  }
 
-  const { trend, avg, volatility } = classifyTrend(timeline);
-
-  const solutionModePct = analytics.length
-    ? analytics.filter((a) => a.solution_mode).length / analytics.length
-    : 0;
-  const avgRepetition = analytics.length
-    ? analytics.reduce((s, a) => s + Number(a.repetition_score || 0), 0) / analytics.length
-    : 0;
-
+  const { profile, metrics, summary, generated_at } = data as any;
   const logo = await loadLogoDataUrl();
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
 
-  // ---------- Header band ----------
+  // ---------- Header ----------
   doc.setFillColor(BRAND.r, BRAND.g, BRAND.b);
   doc.rect(0, 0, W, 90, "F");
   doc.setFillColor(ACCENT.r, ACCENT.g, ACCENT.b);
   doc.rect(0, 90, W, 3, "F");
-
-  if (logo) {
-    try { doc.addImage(logo, "PNG", 32, 20, 52, 52); } catch { /* ignore */ }
-  }
+  if (logo) { try { doc.addImage(logo, "PNG", 32, 20, 52, 52); } catch {} }
   doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(20);
   doc.text("EmoSense AI", 100, 42);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text("Understand. Support. Empower.", 100, 58);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+  doc.text("Clinical Pre-Consultation Summary", 100, 58);
   doc.setFontSize(9);
-  doc.text("Confidential Clinical Summary — For Licensed Therapist Use Only", 100, 74);
-
-  // right meta
+  doc.text("Confidential — For Licensed Therapist Use Only · Non-Diagnostic", 100, 74);
   doc.setFontSize(9);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, W - 32, 42, { align: "right" });
+  doc.text(`Generated: ${new Date(generated_at).toLocaleString()}`, W - 32, 42, { align: "right" });
   doc.text(`Report ID: ES-${userId.slice(0, 8).toUpperCase()}-${Date.now().toString().slice(-6)}`, W - 32, 58, { align: "right" });
-  doc.text(`Window: last 90 days`, W - 32, 74, { align: "right" });
+  doc.text(`Observation window: last 90 days`, W - 32, 74, { align: "right" });
 
-  let y = 120;
+  let y = 118;
   doc.setTextColor(30, 30, 40);
 
-  // ---------- Section: Patient Overview ----------
-  section(doc, "Patient Overview", y); y += 22;
+  // ---------- Client Overview (no PII beyond age/gender/role) ----------
+  section(doc, "Client Overview", y); y += 22;
   autoTable(doc, {
-    startY: y,
-    theme: "plain",
+    startY: y, theme: "plain",
     styles: { fontSize: 10, cellPadding: 4, textColor: [40, 40, 50] },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 130, textColor: [90, 90, 110] } },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 160, textColor: [90, 90, 110] } },
     body: [
-      ["Display name", displayName || "—"],
       ["Anonymized ID", userId],
       ["Age", profile.age != null ? String(profile.age) : "—"],
       ["Gender", profile.gender || "—"],
       ["Role / Profession", profile.profession || "—"],
-      ["Account created", fmt(profile.created_at)],
-      ["Profile completed", fmt(profile.profile_completed_at)],
-      ["Trusted contact on file", profile.trusted_contact_name || profile.trusted_contact_phone ? "Yes" : "No"],
+      ["Account created", fmt(profile.account_created_at)],
+      ["Trusted contact on file", profile.trusted_contact_on_file ? "Yes" : "No"],
+      ["Engagement volume (window)", `${metrics.engagement.user_messages} self-report entries`],
+      ["Peak activity hour", `${metrics.engagement.peak_hour_local_server}:00`],
+      ["Late-night activity share (00–05h)", `${Math.round(metrics.engagement.late_night_share_0_5h * 100)}%`],
     ],
   });
   y = (doc as any).lastAutoTable.finalY + 18;
 
-  // ---------- Section: Engagement & Risk Snapshot ----------
-  section(doc, "Engagement & Risk Snapshot (last ~200 messages)", y); y += 22;
+  // ---------- Clinical Impression ----------
+  if (y > H - 180) { doc.addPage(); y = 60; }
+  section(doc, "Clinical Impression", y); y += 20;
+  y = wrapPara(doc, summary.clinical_impression, y, W);
+  y += 6;
+
+  // ---------- Risk Assessment (prominent) ----------
+  if (y > H - 200) { doc.addPage(); y = 60; }
+  section(doc, "Risk Assessment", y); y += 16;
+  const rColor = RISK_COLOR[summary.risk_assessment.level] || [120, 120, 130];
+  doc.setFillColor(rColor[0], rColor[1], rColor[2]);
+  doc.roundedRect(40, y, 140, 22, 4, 4, "F");
+  doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(11);
+  doc.text(`RISK: ${String(summary.risk_assessment.level).toUpperCase()}`, 110, y + 15, { align: "center" });
+  doc.setTextColor(30, 30, 40); doc.setFont("helvetica", "normal");
+  y += 30;
   autoTable(doc, {
-    startY: y,
-    theme: "grid",
-    styles: { fontSize: 10, cellPadding: 5 },
+    startY: y, theme: "grid",
+    styles: { fontSize: 9.5, cellPadding: 5 },
     headStyles: { fillColor: [BRAND.r, BRAND.g, BRAND.b], textColor: 255 },
-    head: [["Metric", "Value", "Clinical note"]],
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 150 } },
     body: [
-      ["User messages", String(userMsgs.length), "Volume of self-expression captured in window"],
-      ["High-risk messages", String(highCount), highCount > 0 ? "Warrants clinical attention" : "None in sample"],
-      ["Moderate-risk messages", String(modCount), modCount > 3 ? "Recurring distress signals" : "Occasional"],
-      ["Sentiment trend", trend, `Avg sentiment ${avg.toFixed(2)} on [-1, +1] scale`],
-      ["Emotional volatility", volatility.toFixed(2), volatility > 0.4 ? "Elevated fluctuation" : "Within typical range"],
-      ["Solution-seeking rate", pct(solutionModePct), "Fraction of replies where user asked for actionable steps"],
-      ["Reply-repetition score", pct(avgRepetition), "Lower is better; used internally for quality QA"],
+      ["Risk factors", (summary.risk_assessment.risk_factors || []).join(" · ") || "None identified"],
+      ["Protective factors", (summary.risk_assessment.protective_factors || []).join(" · ") || "Limited"],
+      ["Safety plan recommended", summary.risk_assessment.safety_plan_recommended ? "Yes — prioritize first session" : "Not indicated at this time"],
+      ["Clinical notes", summary.risk_assessment.notes || "—"],
     ],
   });
   y = (doc as any).lastAutoTable.finalY + 18;
 
-  // ---------- Section: Dominant Emotional Themes ----------
-  if (y > H - 200) { doc.addPage(); y = 60; }
-  section(doc, "Dominant Emotional Themes", y); y += 22;
-  if (dominantEmotions.length === 0) {
-    doc.setFontSize(10); doc.setTextColor(MUTED.r, MUTED.g, MUTED.b);
-    doc.text("No mood entries in the observation window.", 40, y); y += 20;
-  } else {
-    const total = dominantEmotions.reduce((s, [, c]) => s + c, 0);
-    autoTable(doc, {
-      startY: y,
-      theme: "striped",
-      styles: { fontSize: 10, cellPadding: 5 },
-      headStyles: { fillColor: [ACCENT.r, ACCENT.g, ACCENT.b], textColor: 20 },
-      head: [["Emotion", "Occurrences", "Share"]],
-      body: dominantEmotions.map(([e, c]) => [e, String(c), pct(c / total)]),
-    });
-    y = (doc as any).lastAutoTable.finalY + 18;
-  }
+  // ---------- Presenting Concerns ----------
+  if (y > H - 160) { doc.addPage(); y = 60; }
+  section(doc, "Presenting Concerns", y); y += 18;
+  y = bulletList(doc, summary.presenting_concerns || [], y, W);
 
-  // ---------- Section: Recent flagged excerpts ----------
-  if (y > H - 200) { doc.addPage(); y = 60; }
-  section(doc, "Recent High/Moderate-Risk Excerpts", y); y += 22;
-  if (flagged.length === 0) {
-    doc.setFontSize(10); doc.setTextColor(MUTED.r, MUTED.g, MUTED.b);
-    doc.text("No flagged messages captured in the recent window.", 40, y); y += 20;
-  } else {
-    autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      styles: { fontSize: 9, cellPadding: 5, overflow: "linebreak" },
-      headStyles: { fillColor: [180, 40, 60], textColor: 255 },
-      columnStyles: { 0: { cellWidth: 90 }, 1: { cellWidth: 70 }, 2: { cellWidth: 60 } },
-      head: [["When", "Emotion", "Risk", "Excerpt (truncated)"]],
-      body: flagged.map((f) => [
-        fmt(f.created_at),
-        f.emotion || "—",
-        (f.risk_level || "").toUpperCase(),
-        String(f.content || "").slice(0, 220),
-      ]),
-    });
-    y = (doc as any).lastAutoTable.finalY + 18;
-  }
-
-  // ---------- Section: Therapist observations ----------
+  // ---------- Provisional Themes ----------
   if (y > H - 220) { doc.addPage(); y = 60; }
-  section(doc, "Suggested Clinical Focus Areas", y); y += 22;
-
-  const suggestions: string[] = [];
-  if (highCount > 0) suggestions.push("Assess for active safety concerns; corroborate flagged content with direct interview.");
-  if (trend === "Declining") suggestions.push("Explore recent stressors driving downward sentiment trajectory.");
-  if (volatility > 0.4) suggestions.push("Consider emotion-regulation strategies (DBT skills, grounding).");
-  if (solutionModePct > 0.4) suggestions.push("User frequently requests concrete steps — pair validation with structured goal-setting.");
-  const anxious = dominantEmotions.find(([e]) => /anx|stress|panic|worried/.test(e));
-  if (anxious) suggestions.push("Recurring anxiety themes — evaluate for GAD screening (GAD-7).");
-  const sad = dominantEmotions.find(([e]) => /sad|hopeless|lonely|depress|numb/.test(e));
-  if (sad) suggestions.push("Persistent low mood — consider depression screening (PHQ-9).");
-  if (!profile.trusted_contact_name && !profile.trusted_contact_phone) suggestions.push("No trusted contact on file — collaborate on a safety-network plan.");
-  if (suggestions.length === 0) suggestions.push("No acute red flags; continue supportive monitoring and rapport-building.");
-
-  doc.setFontSize(10);
-  doc.setTextColor(40, 40, 50);
-  suggestions.forEach((s) => {
-    const lines = doc.splitTextToSize(`• ${s}`, W - 80);
-    if (y + lines.length * 14 > H - 80) { doc.addPage(); y = 60; }
-    doc.text(lines, 40, y);
-    y += lines.length * 14 + 4;
+  section(doc, "Provisional Clinical Themes (Non-Diagnostic)", y); y += 22;
+  autoTable(doc, {
+    startY: y, theme: "striped",
+    styles: { fontSize: 9.5, cellPadding: 5, overflow: "linebreak" },
+    headStyles: { fillColor: [ACCENT.r, ACCENT.g, ACCENT.b], textColor: 20 },
+    columnStyles: { 0: { cellWidth: 170 }, 1: { cellWidth: 90 } },
+    head: [["Theme", "Evidence strength", "Clinical basis"]],
+    body: (summary.provisional_themes || []).map((t: any) => [t.theme, t.evidence_strength, t.clinical_evidence]),
   });
+  y = (doc as any).lastAutoTable.finalY + 18;
 
-  // ---------- Footer on every page ----------
+  // ---------- Cognitive & Behavioural ----------
+  if (y > H - 220) { doc.addPage(); y = 60; }
+  section(doc, "Cognitive Patterns", y); y += 18;
+  y = bulletList(doc, summary.cognitive_patterns || [], y, W);
+
+  if (y > H - 180) { doc.addPage(); y = 60; }
+  section(doc, "Behavioural Observations", y); y += 18;
+  y = bulletList(doc, summary.behavioural_observations || [], y, W);
+
+  // ---------- Functional Impact ----------
+  if (y > H - 200) { doc.addPage(); y = 60; }
+  section(doc, "Functional Impact", y); y += 22;
+  autoTable(doc, {
+    startY: y, theme: "grid",
+    styles: { fontSize: 9.5, cellPadding: 5 },
+    headStyles: { fillColor: [BRAND.r, BRAND.g, BRAND.b], textColor: 255 },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 160 } },
+    body: [
+      ["Work / Academic", summary.functional_impact.work_or_academic || "—"],
+      ["Relationships", summary.functional_impact.relationships || "—"],
+      ["Self-care & Sleep", summary.functional_impact.self_care_and_sleep || "—"],
+    ],
+  });
+  y = (doc as any).lastAutoTable.finalY + 18;
+
+  // ---------- Recommended Screenings ----------
+  if (y > H - 200) { doc.addPage(); y = 60; }
+  section(doc, "Recommended Screening Instruments", y); y += 18;
+  y = bulletList(doc, summary.recommended_screenings || [], y, W);
+
+  // ---------- Suggested Interventions ----------
+  if (y > H - 200) { doc.addPage(); y = 60; }
+  section(doc, "Suggested Evidence-Based Interventions", y); y += 18;
+  y = bulletList(doc, summary.suggested_interventions || [], y, W);
+
+  // ---------- First-Session Focus ----------
+  if (y > H - 200) { doc.addPage(); y = 60; }
+  section(doc, "Suggested First-Session Focus Areas", y); y += 18;
+  y = bulletList(doc, summary.therapist_focus_areas || [], y, W);
+
+  // ---------- Prognosis & Limitations ----------
+  if (y > H - 200) { doc.addPage(); y = 60; }
+  section(doc, "Prognostic Note", y); y += 18;
+  y = wrapPara(doc, summary.prognosis_note, y, W); y += 8;
+
+  if (y > H - 160) { doc.addPage(); y = 60; }
+  section(doc, "Limitations & Data Provenance", y); y += 18;
+  y = wrapPara(doc, summary.limitations, y, W);
+
+  // ---------- Privacy notice ----------
+  if (y > H - 120) { doc.addPage(); y = 60; }
+  doc.setFillColor(245, 240, 255);
+  doc.roundedRect(32, y, W - 64, 60, 6, 6, "F");
+  doc.setTextColor(BRAND.r, BRAND.g, BRAND.b);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10);
+  doc.text("Privacy Statement", 44, y + 18);
+  doc.setFont("helvetica", "normal"); doc.setTextColor(60, 60, 70); doc.setFontSize(9);
+  const privacy = "This report contains NO raw messages, quotes, names, places, or identifying content from the client's conversations. All observations are AI-generated clinical translations of behavioural signals from the EmoSense platform. It is intended as a pre-consultation aid, is non-diagnostic, and must be interpreted by a licensed clinician alongside direct assessment.";
+  doc.text(doc.splitTextToSize(privacy, W - 88), 44, y + 34);
+
+  // ---------- Footer ----------
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -245,17 +206,15 @@ export async function generateTherapistReport(userId: string, displayName: strin
     doc.setFontSize(8);
     doc.setTextColor(MUTED.r, MUTED.g, MUTED.b);
     doc.text(
-      "EmoSense AI · Confidential — This report is a computer-generated summary based on user-reported data and does not constitute a clinical diagnosis.",
-      W / 2,
-      H - 32,
-      { align: "center", maxWidth: W - 80 }
+      "EmoSense AI · Confidential clinical summary — computer-generated, non-diagnostic, no raw user content included.",
+      W / 2, H - 32, { align: "center", maxWidth: W - 80 }
     );
     doc.text(`Page ${i} of ${pageCount}`, W - 32, H - 18, { align: "right" });
     doc.text("emosense-companion.lovable.app", 32, H - 18);
   }
 
   const safeName = (displayName || userId.slice(0, 8)).replace(/[^a-z0-9]+/gi, "_");
-  doc.save(`EmoSense_TherapistReport_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`EmoSense_ClinicalSummary_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 function section(doc: jsPDF, title: string, y: number) {
@@ -263,10 +222,31 @@ function section(doc: jsPDF, title: string, y: number) {
   doc.setFillColor(BRAND.r, BRAND.g, BRAND.b);
   doc.rect(32, y - 12, 4, 16, "F");
   doc.setTextColor(30, 30, 40);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(12);
   doc.text(title, 44, y);
   doc.setDrawColor(230);
   doc.line(44, y + 4, W - 32, y + 4);
   doc.setFont("helvetica", "normal");
+}
+
+function wrapPara(doc: jsPDF, text: string, y: number, W: number): number {
+  doc.setFontSize(10); doc.setTextColor(40, 40, 50);
+  const lines = doc.splitTextToSize(text || "—", W - 80);
+  const H = doc.internal.pageSize.getHeight();
+  if (y + lines.length * 13 > H - 80) { doc.addPage(); y = 60; }
+  doc.text(lines, 40, y);
+  return y + lines.length * 13;
+}
+
+function bulletList(doc: jsPDF, items: string[], y: number, W: number): number {
+  doc.setFontSize(10); doc.setTextColor(40, 40, 50);
+  const H = doc.internal.pageSize.getHeight();
+  if (!items.length) { doc.setTextColor(MUTED.r, MUTED.g, MUTED.b); doc.text("—", 40, y); return y + 14; }
+  for (const it of items) {
+    const lines = doc.splitTextToSize(`• ${it}`, W - 80);
+    if (y + lines.length * 13 > H - 80) { doc.addPage(); y = 60; }
+    doc.text(lines, 40, y);
+    y += lines.length * 13 + 3;
+  }
+  return y;
 }
