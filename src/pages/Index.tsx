@@ -11,6 +11,8 @@ import { EmotionMeter, PrivacyBadge, InsightBubble, deriveMeter, useDismissible 
 import { ConnectInbox } from "@/components/ConnectInbox";
 import { CrisisResourceCard } from "@/components/CrisisResourceCard";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
+import { ShareAppButton } from "@/components/ShareAppButton";
+
 import { AttachmentComposer, PendingAttachment } from "@/components/AttachmentComposer";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Send, LogOut, Shield, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
