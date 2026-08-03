@@ -422,6 +422,9 @@ const Index = () => {
         <PanicButton trustedContact={contact} />
       </div>
 
+      <ShareAppButton className="w-full justify-start" />
+
+
       {isAdmin && (
         <Link to="/admin" className="block">
           <Button variant="outline" size="sm" className="w-full justify-start">
