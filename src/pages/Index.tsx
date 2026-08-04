@@ -40,9 +40,14 @@ const WELCOME: Msg = {
 
 const Index = () => {
   const { user, loading, isAdmin, signOut } = useAuth();
+  const voice = useSpeech();
+  const speakReply = (text: string, slow = false) => {
+    voice.speak(text, { slow }).catch(e => toast.error(e?.message ?? "Voice unavailable right now"));
+  };
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+
   const [contact, setContact] = useState<{ name?: string | null; email?: string | null; phone?: string | null } | null>(null);
   const [lastActivity, setLastActivity] = useState<Date>(new Date());
   const [profileChecked, setProfileChecked] = useState(false);
