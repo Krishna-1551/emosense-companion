@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { AttachmentChip, AttachmentAnalysis } from "./AttachmentChip";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Volume2 } from "lucide-react";
 
 const emotionEmoji: Record<string, string> = {
   joy: "😊", sadness: "💙", anxiety: "🫧", stress: "🌊",
@@ -13,7 +13,9 @@ type Props = {
   emotion?: string | null;
   risk?: string | null;
   time?: string;
+  onSpeak?: (text: string) => void;
 };
+
 
 const ATTACHMENT_TAG = /\n*\[\[emosense-attachments:([\s\S]+?)\]\]\s*$/;
 const parseAttachments = (content: string): { text: string; attachments: AttachmentAnalysis[] } => {
@@ -61,9 +63,10 @@ const renderInline = (text: string) => {
   });
 };
 
-export const MessageBubble = ({ role, content, emotion, risk, time }: Props) => {
+export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak }: Props) => {
   const isUser = role === "user";
   const { text, attachments } = parseAttachments(content);
+
   return (
     <div className={cn("flex w-full gap-2 animate-float-up", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
@@ -96,8 +99,19 @@ export const MessageBubble = ({ role, content, emotion, risk, time }: Props) => 
               risk === "high" ? "bg-destructive/20 text-destructive" : "bg-warning/20 text-[hsl(var(--warning))]"
             )}>{risk} risk</span>
           )}
+          {!isUser && onSpeak && text && (
+            <button
+              onClick={() => onSpeak(text)}
+              aria-label="Play this reply aloud"
+              title="Play aloud"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full hover:bg-secondary/70 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Volume2 className="w-3 h-3" />
+            </button>
+          )}
           {time && <span className="ml-auto tabular-nums">{time}</span>}
         </div>
+
       </div>
     </div>
   );

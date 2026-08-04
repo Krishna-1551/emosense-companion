@@ -12,6 +12,9 @@ import { ConnectInbox } from "@/components/ConnectInbox";
 import { CrisisResourceCard } from "@/components/CrisisResourceCard";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { ShareAppButton } from "@/components/ShareAppButton";
+import { VoiceToggle } from "@/components/VoiceToggle";
+import { useSpeech } from "@/lib/speech";
+
 
 import { AttachmentComposer, PendingAttachment } from "@/components/AttachmentComposer";
 import { Button } from "@/components/ui/button";
@@ -37,9 +40,14 @@ const WELCOME: Msg = {
 
 const Index = () => {
   const { user, loading, isAdmin, signOut } = useAuth();
+  const voice = useSpeech();
+  const speakReply = (text: string, slow = false) => {
+    voice.speak(text, { slow }).catch(e => toast.error(e?.message ?? "Voice unavailable right now"));
+  };
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+
   const [contact, setContact] = useState<{ name?: string | null; email?: string | null; phone?: string | null } | null>(null);
   const [lastActivity, setLastActivity] = useState<Date>(new Date());
   const [profileChecked, setProfileChecked] = useState(false);
@@ -302,7 +310,9 @@ const Index = () => {
       const choices = fresh.length ? fresh : pool;
       const pick = choices[Math.floor(Math.random() * choices.length)];
       setMessages(m => [...m, { role: "assistant", content: pick, emotion: emo || "neutral" }]);
+      if (voice.enabled) speakReply(pick);
       setNudgeSent(true);
+
     }, delayMs);
     return () => clearTimeout(t);
   }, [lastActivity, messages, nudgeSent]);
@@ -353,9 +363,11 @@ const Index = () => {
         copy.push({ role: "assistant", content: data.reply });
         return copy;
       });
+      if (voice.enabled && data.reply) speakReply(data.reply, data.risk_level === "high");
       if (data.risk_level === "high") {
         toast.error("We sense you're going through a lot. Please consider the support options.", { duration: 8000 });
       }
+
     } catch (e: any) {
       toast.error(e.message ?? "Something went wrong");
       setMessages(m => [...m, { role: "assistant", content: "I'm having trouble responding right now. Please try again in a moment." }]);
@@ -492,7 +504,9 @@ const Index = () => {
                 emotion={m.emotion}
                 risk={m.risk_level}
                 time={m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : undefined}
+                onSpeak={m.role === "assistant" ? (t) => speakReply(t) : undefined}
               />
+
             ))}
             {sending && (
               <div className="flex items-center gap-2 animate-float-up">
@@ -528,9 +542,16 @@ const Index = () => {
                 </div>
               )}
 
-              <div className="max-w-2xl mx-auto flex justify-center">
+              <div className="max-w-2xl mx-auto flex flex-wrap items-center justify-center gap-2">
                 <PrivacyBadge />
+                <VoiceToggle
+                  enabled={voice.enabled}
+                  speaking={voice.speaking}
+                  onToggle={voice.toggle}
+                  onStop={voice.stop}
+                />
               </div>
+
 
               <div className="max-w-2xl mx-auto">
                 <ConnectInbox userId={user.id} />
