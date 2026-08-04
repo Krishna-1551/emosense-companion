@@ -99,8 +99,19 @@ export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak }: P
               risk === "high" ? "bg-destructive/20 text-destructive" : "bg-warning/20 text-[hsl(var(--warning))]"
             )}>{risk} risk</span>
           )}
+          {!isUser && onSpeak && text && (
+            <button
+              onClick={() => onSpeak(text)}
+              aria-label="Play this reply aloud"
+              title="Play aloud"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full hover:bg-secondary/70 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Volume2 className="w-3 h-3" />
+            </button>
+          )}
           {time && <span className="ml-auto tabular-nums">{time}</span>}
         </div>
+
       </div>
     </div>
   );
