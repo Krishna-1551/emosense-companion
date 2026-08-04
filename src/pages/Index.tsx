@@ -504,7 +504,9 @@ const Index = () => {
                 emotion={m.emotion}
                 risk={m.risk_level}
                 time={m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : undefined}
+                onSpeak={m.role === "assistant" ? (t) => speakReply(t) : undefined}
               />
+
             ))}
             {sending && (
               <div className="flex items-center gap-2 animate-float-up">
