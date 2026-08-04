@@ -310,7 +310,9 @@ const Index = () => {
       const choices = fresh.length ? fresh : pool;
       const pick = choices[Math.floor(Math.random() * choices.length)];
       setMessages(m => [...m, { role: "assistant", content: pick, emotion: emo || "neutral" }]);
+      if (voice.enabled) speakReply(pick);
       setNudgeSent(true);
+
     }, delayMs);
     return () => clearTimeout(t);
   }, [lastActivity, messages, nudgeSent]);
