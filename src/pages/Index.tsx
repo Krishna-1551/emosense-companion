@@ -542,9 +542,16 @@ const Index = () => {
                 </div>
               )}
 
-              <div className="max-w-2xl mx-auto flex justify-center">
+              <div className="max-w-2xl mx-auto flex flex-wrap items-center justify-center gap-2">
                 <PrivacyBadge />
+                <VoiceToggle
+                  enabled={voice.enabled}
+                  speaking={voice.speaking}
+                  onToggle={voice.toggle}
+                  onStop={voice.stop}
+                />
               </div>
+
 
               <div className="max-w-2xl mx-auto">
                 <ConnectInbox userId={user.id} />
