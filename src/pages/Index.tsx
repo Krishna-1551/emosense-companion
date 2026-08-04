@@ -12,6 +12,9 @@ import { ConnectInbox } from "@/components/ConnectInbox";
 import { CrisisResourceCard } from "@/components/CrisisResourceCard";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { ShareAppButton } from "@/components/ShareAppButton";
+import { VoiceToggle } from "@/components/VoiceToggle";
+import { useSpeech } from "@/lib/speech";
+
 
 import { AttachmentComposer, PendingAttachment } from "@/components/AttachmentComposer";
 import { Button } from "@/components/ui/button";
