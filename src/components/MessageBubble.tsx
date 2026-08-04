@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { AttachmentChip, AttachmentAnalysis } from "./AttachmentChip";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Volume2 } from "lucide-react";
 
 const emotionEmoji: Record<string, string> = {
   joy: "😊", sadness: "💙", anxiety: "🫧", stress: "🌊",
@@ -13,7 +13,9 @@ type Props = {
   emotion?: string | null;
   risk?: string | null;
   time?: string;
+  onSpeak?: (text: string) => void;
 };
+
 
 const ATTACHMENT_TAG = /\n*\[\[emosense-attachments:([\s\S]+?)\]\]\s*$/;
 const parseAttachments = (content: string): { text: string; attachments: AttachmentAnalysis[] } => {
