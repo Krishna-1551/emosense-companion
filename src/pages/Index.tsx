@@ -361,9 +361,11 @@ const Index = () => {
         copy.push({ role: "assistant", content: data.reply });
         return copy;
       });
+      if (voice.enabled && data.reply) speakReply(data.reply, data.risk_level === "high");
       if (data.risk_level === "high") {
         toast.error("We sense you're going through a lot. Please consider the support options.", { duration: 8000 });
       }
+
     } catch (e: any) {
       toast.error(e.message ?? "Something went wrong");
       setMessages(m => [...m, { role: "assistant", content: "I'm having trouble responding right now. Please try again in a moment." }]);
