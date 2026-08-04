@@ -63,9 +63,10 @@ const renderInline = (text: string) => {
   });
 };
 
-export const MessageBubble = ({ role, content, emotion, risk, time }: Props) => {
+export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak }: Props) => {
   const isUser = role === "user";
   const { text, attachments } = parseAttachments(content);
+
   return (
     <div className={cn("flex w-full gap-2 animate-float-up", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
