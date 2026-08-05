@@ -2,10 +2,13 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const VOICE_INSTRUCTIONS = [
-  "Speak as a calm, warm, emotionally attuned female companion.",
-  "Tone: gentle, soothing, unhurried — like a kind therapist sitting beside someone.",
-  "Pace slowly, with small natural pauses at commas and full stops.",
-  "Never sound clinical, chirpy, or performative. Soft volume, steady breath.",
+  "Voice: a real, warm young woman in her late twenties — a close friend who genuinely cares.",
+  "Affect: soothing, tender, emotionally present. Soft volume, relaxed jaw, gentle breathiness.",
+  "Delivery: conversational and human, never like reading a script. Let sentences fall naturally,",
+  "soften the ends of phrases, take small real breaths and micro-pauses at commas and full stops.",
+  "Add subtle natural warmth and slight smile in the voice when the words are kind or hopeful,",
+  "and slow down, lower the pitch a little, when the words are heavy or comforting.",
+  "Avoid any clinical, chirpy, announcer or customer-support tone. No exaggerated emotion.",
 ].join(" ");
 
 // Strip markdown, emoji and internal attachment tags before synthesis.
@@ -84,9 +87,9 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           model: "openai/gpt-4o-mini-tts",
           input: chunk,
-          voice: "shimmer",
+          voice: "coral",
           instructions: VOICE_INSTRUCTIONS,
-          speed: slow ? 0.88 : 0.95,
+          speed: slow ? 0.9 : 0.97,
           response_format: "mp3",
         }),
       });

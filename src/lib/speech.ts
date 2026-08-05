@@ -16,11 +16,25 @@ const getEl = () => {
   return el;
 };
 
-/**
- * Fetches synthesized speech from the `speak` edge function and plays it.
- * Resolves once playback finishes (or is aborted).
- */
-export async function speakText(text: string, opts: SpeakOptions = {}): Promise<void> {
+/** Splits a reply into short speakable segments so the first words start fast. */
+function segment(text: string, firstMax = 160, restMax = 420): string[] {
+  const sentences = text.match(/[^.!?\n]+[.!?]*\s*/g) ?? [text];
+  const out: string[] = [];
+  let current = "";
+  const limit = () => (out.length === 0 ? firstMax : restMax);
+  for (const s of sentences) {
+    if (current && (current + s).length > limit()) {
+      out.push(current.trim());
+      current = "";
+    }
+    current += s;
+  }
+  if (current.trim()) out.push(current.trim());
+  return out.filter(Boolean);
+}
+
+/** Requests one audio segment as a blob. */
+async function fetchSegment(text: string, slow: boolean, signal?: AbortSignal): Promise<Blob> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token) throw new Error("Please sign in to use voice replies.");
@@ -33,8 +47,8 @@ export async function speakText(text: string, opts: SpeakOptions = {}): Promise<
       "Content-Type": "application/json",
       apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
     },
-    body: JSON.stringify({ text, slow: opts.slow ?? false }),
-    signal: opts.signal,
+    body: JSON.stringify({ text, slow }),
+    signal,
   });
 
   if (!res.ok) {
@@ -48,39 +62,63 @@ export async function speakText(text: string, opts: SpeakOptions = {}): Promise<
 
   const blob = await res.blob();
   if (!blob.size) throw new Error("Voice returned no audio.");
-  if (opts.signal?.aborted) return;
+  return blob;
+}
 
+function playBlob(blob: Blob, signal?: AbortSignal): Promise<void> {
   const objectUrl = URL.createObjectURL(blob);
   const audio = getEl();
   audio.pause();
   audio.src = objectUrl;
   audio.currentTime = 0;
 
-  const cleanup = () => {
-    URL.revokeObjectURL(objectUrl);
+  return new Promise<void>((resolve, reject) => {
+    const done = () => { detach(); URL.revokeObjectURL(objectUrl); resolve(); };
+    const fail = () => { detach(); URL.revokeObjectURL(objectUrl); reject(new Error("Audio playback was blocked by the browser.")); };
+    const onAbort = () => { audio.pause(); done(); };
+    const detach = () => {
+      audio.removeEventListener("ended", done);
+      audio.removeEventListener("error", fail);
+      signal?.removeEventListener("abort", onAbort);
+    };
+    audio.addEventListener("ended", done);
+    audio.addEventListener("error", fail);
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    audio.play().catch(err => {
+      detach();
+      URL.revokeObjectURL(objectUrl);
+      reject(err instanceof Error ? err : new Error("Audio playback failed."));
+    });
+  });
+}
+
+/**
+ * Speaks a reply: the first short segment is fetched and played immediately while
+ * the remaining segments are synthesized in the background, so speech starts fast.
+ */
+export async function speakText(text: string, opts: SpeakOptions = {}): Promise<void> {
+  const slow = opts.slow ?? false;
+  const parts = segment(text);
+  if (!parts.length) return;
+
+  // Attach a no-op catch so an in-flight prefetch never becomes an unhandled rejection.
+  const prefetch = (t: string) => {
+    const p = fetchSegment(t, slow, opts.signal);
+    p.catch(() => {});
+    return p;
   };
 
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const done = () => { detach(); resolve(); };
-      const fail = () => { detach(); reject(new Error("Audio playback was blocked by the browser.")); };
-      const onAbort = () => { audio.pause(); done(); };
-      const detach = () => {
-        audio.removeEventListener("ended", done);
-        audio.removeEventListener("error", fail);
-        opts.signal?.removeEventListener("abort", onAbort);
-      };
-      audio.addEventListener("ended", done);
-      audio.addEventListener("error", fail);
-      opts.signal?.addEventListener("abort", onAbort, { once: true });
+  let next: Promise<Blob> | null = prefetch(parts[0]);
 
-      audio.play().catch(err => {
-        detach();
-        reject(err instanceof Error ? err : new Error("Audio playback failed."));
-      });
-    });
-  } finally {
-    cleanup();
+  for (let i = 0; i < parts.length; i++) {
+    const current = next!;
+    // Start synthesizing the following segment while this one plays.
+    next = i + 1 < parts.length ? prefetch(parts[i + 1]) : null;
+    const blob = await current;
+    if (opts.signal?.aborted) return;
+    await playBlob(blob, opts.signal);
+    if (opts.signal?.aborted) return;
   }
 }
 
