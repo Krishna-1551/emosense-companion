@@ -102,12 +102,19 @@ export async function speakText(text: string, opts: SpeakOptions = {}): Promise<
   const parts = segment(text);
   if (!parts.length) return;
 
-  let next: Promise<Blob> | null = fetchSegment(parts[0], slow, opts.signal);
+  // Attach a no-op catch so an in-flight prefetch never becomes an unhandled rejection.
+  const prefetch = (t: string) => {
+    const p = fetchSegment(t, slow, opts.signal);
+    p.catch(() => {});
+    return p;
+  };
+
+  let next: Promise<Blob> | null = prefetch(parts[0]);
 
   for (let i = 0; i < parts.length; i++) {
     const current = next!;
     // Start synthesizing the following segment while this one plays.
-    next = i + 1 < parts.length ? fetchSegment(parts[i + 1], slow, opts.signal) : null;
+    next = i + 1 < parts.length ? prefetch(parts[i + 1]) : null;
     const blob = await current;
     if (opts.signal?.aborted) return;
     await playBlob(blob, opts.signal);
