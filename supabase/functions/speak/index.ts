@@ -75,76 +75,51 @@ Deno.serve(async (req) => {
     if (!apiKey) return json({ error: "Voice is not configured" }, 500);
 
     const chunks = chunkText(cleaned);
+    const buffers: Uint8Array[] = [];
 
-    // Single upstream call → pass the SSE body straight through (fastest start).
-    if (chunks.length === 1) {
+    for (const chunk of chunks) {
       const upstream = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "openai/gpt-4o-mini-tts",
-          input: chunks[0],
+          input: chunk,
           voice: "shimmer",
           instructions: VOICE_INSTRUCTIONS,
           speed: slow ? 0.88 : 0.95,
-          stream_format: "sse",
-          response_format: "pcm",
+          response_format: "mp3",
         }),
       });
-      if (!upstream.ok || !upstream.body) {
+
+      if (!upstream.ok) {
         const detail = await upstream.text().catch(() => "");
         console.error(`TTS failed [${upstream.status}]: ${detail}`);
         if (upstream.status === 429) return json({ error: "Voice is busy right now, please try again shortly." }, 429);
         if (upstream.status === 402) return json({ error: "AI credits exhausted — voice replies are paused." }, 402);
-        return json({ error: "Voice generation failed", details: detail }, upstream.status || 500);
+        return json({ error: "Voice generation failed", details: detail.slice(0, 300) }, upstream.status || 500);
       }
-      return new Response(upstream.body, {
-        headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
-      });
+
+      const bytes = new Uint8Array(await upstream.arrayBuffer());
+      if (bytes.byteLength === 0) {
+        console.error("TTS returned an empty audio body");
+        return json({ error: "Voice returned no audio" }, 502);
+      }
+      buffers.push(bytes);
     }
 
-    // Multiple chunks → stitch their SSE deltas into one continuous stream.
-    const stream = new ReadableStream({
-      async start(controller) {
-        const enc = new TextEncoder();
-        try {
-          for (const chunk of chunks) {
-            const upstream = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                model: "openai/gpt-4o-mini-tts",
-                input: chunk,
-                voice: "shimmer",
-                instructions: VOICE_INSTRUCTIONS,
-                speed: slow ? 0.88 : 0.95,
-                stream_format: "sse",
-                response_format: "pcm",
-              }),
-            });
-            if (!upstream.ok || !upstream.body) {
-              const detail = await upstream.text().catch(() => "");
-              console.error(`TTS chunk failed [${upstream.status}]: ${detail}`);
-              break;
-            }
-            const reader = upstream.body.getReader();
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              controller.enqueue(value);
-            }
-          }
-          controller.enqueue(enc.encode(`data: {"type":"speech.audio.done"}\n\n`));
-          controller.close();
-        } catch (e) {
-          console.error("TTS stitch error", e);
-          controller.close();
-        }
-      },
-    });
+    const total = buffers.reduce((n, b) => n + b.byteLength, 0);
+    const audio = new Uint8Array(total);
+    let offset = 0;
+    for (const b of buffers) { audio.set(b, offset); offset += b.byteLength; }
+    console.log(`TTS ok — ${chunks.length} chunk(s), ${total} bytes`);
 
-    return new Response(stream, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+    return new Response(audio, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "audio/mpeg",
+        "Content-Length": String(total),
+        "Cache-Control": "no-store",
+      },
     });
   } catch (e) {
     console.error("speak error", e);
