@@ -1,5 +1,9 @@
 // EmoSense AI chat — emotion detection + supportive reply via Lovable AI Gateway
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  retrievePsychCases, analyseContext, assessSeverity, buildPsychBlock,
+  recordAssessment, summariseTimeline,
+} from "../_shared/psych.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -284,6 +288,32 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
 
     const lastUserSentiments = (recent || []).filter(r => r.role === "user").slice(0, 3).map(r => r.sentiment);
     const repeatedNegative = lastUserSentiments.length >= 3 && lastUserSentiments.every(s => s === "negative");
+
+    // ---------------------------------------------------------------------
+    // PSYCHOLOGICAL INTELLIGENCE ENGINE
+    // Case retrieval → context analysis → severity assessment → strategy.
+    // ---------------------------------------------------------------------
+    const { data: priorAssessments } = await supabase
+      .from("psych_assessments")
+      .select("patterns, matched_case_codes, emotion, severity_level, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    const psychCases = await retrievePsychCases(supabase, composedUserMessage, [], 4);
+    const psychCtx = analyseContext(composedUserMessage, (priorAssessments as any) || []);
+    const psychSeverity = assessSeverity({
+      message: composedUserMessage,
+      ctx: psychCtx,
+      cases: psychCases,
+      repeatedNegative,
+      recentHighRisk,
+    });
+    const psychBlock = buildPsychBlock({
+      cases: psychCases,
+      severity: psychSeverity,
+      ctx: psychCtx,
+      timelineSummary: summariseTimeline((priorAssessments as any) || []),
+    });
 
     // Last 5 assistant replies in THIS conversation (anti-repetition)
     const { data: lastAssistant } = await supabase
@@ -583,7 +613,9 @@ ${bannedBlock}
 
 ${questionLimitBlock}
 
-${solutionModeBlock}`;
+${solutionModeBlock}
+
+${psychBlock}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY missing");
@@ -699,6 +731,11 @@ ${solutionModeBlock}`;
     // Repeated negative pattern → escalate at least to moderate
     if (repeatedNegative && args.risk_level === "low") args.risk_level = "moderate";
 
+    // Psychological engine escalation — severity 4 always means high risk;
+    // severity 3 never stays "low".
+    if (psychSeverity.level === 4) args.risk_level = "high";
+    else if (psychSeverity.level === 3 && args.risk_level === "low") args.risk_level = "moderate";
+
     // Persist attachment metadata inline so the UI can render chips in history.
     const attachmentTag = atts.length
       ? `\n\n[[emosense-attachments:${JSON.stringify(atts.map(a => ({
@@ -719,6 +756,22 @@ ${solutionModeBlock}`;
       { user_id: user.id, conversation_id: conversationId, role: "assistant", content: args.reply, message_length: args.reply.length },
     ]).select("id, role");
     const assistantMsgId = insertedMsgs?.find((m: any) => m.role === "assistant")?.id ?? null;
+    const userMsgId = insertedMsgs?.find((m: any) => m.role === "user")?.id ?? null;
+
+    // Emotional timeline entry — patterns and severity only, no raw chat text.
+    await recordAssessment(supabase, {
+      user_id: user.id,
+      conversation_id: conversationId,
+      message_id: userMsgId,
+      emotion: args.emotion ?? null,
+      severity_level: psychSeverity.level,
+      patterns: Array.from(new Set(psychCases.flatMap((c) => c.possible_patterns || []))).slice(0, 8),
+      matched_case_codes: psychCases.map((c) => c.case_code),
+      context_summary: psychSeverity.reasons.join("; ").slice(0, 500) || null,
+      strategy: `level_${psychSeverity.level}`,
+      uncertainty: psychSeverity.uncertainty,
+      escalation_triggered: psychSeverity.escalate,
+    });
 
     // Auto-title from the first user message if title is empty
     if (!conversationTitle) {

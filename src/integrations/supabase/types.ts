@@ -417,6 +417,200 @@ export type Database = {
         }
         Relationships: []
       }
+      psych_assessments: {
+        Row: {
+          context_summary: string | null
+          conversation_id: string | null
+          created_at: string
+          emotion: string | null
+          escalation_triggered: boolean
+          id: string
+          intensity: number | null
+          matched_case_codes: string[]
+          message_id: string | null
+          patterns: string[]
+          severity_level: number
+          strategy: string | null
+          uncertainty: number | null
+          user_id: string
+        }
+        Insert: {
+          context_summary?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          emotion?: string | null
+          escalation_triggered?: boolean
+          id?: string
+          intensity?: number | null
+          matched_case_codes?: string[]
+          message_id?: string | null
+          patterns?: string[]
+          severity_level?: number
+          strategy?: string | null
+          uncertainty?: number | null
+          user_id: string
+        }
+        Update: {
+          context_summary?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          emotion?: string | null
+          escalation_triggered?: boolean
+          id?: string
+          intensity?: number | null
+          matched_case_codes?: string[]
+          message_id?: string | null
+          patterns?: string[]
+          severity_level?: number
+          strategy?: string | null
+          uncertainty?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "psych_assessments_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      psych_cases: {
+        Row: {
+          avoid_saying: string[]
+          case_code: string
+          category: string
+          confidence: number
+          context_notes: string | null
+          created_at: string
+          created_by: string | null
+          detected_signals: string[]
+          enabled: boolean
+          escalation_criteria: string | null
+          example_statements: string[]
+          follow_up_questions: string[]
+          id: string
+          next_steps: string[]
+          possible_patterns: string[]
+          response_strategy: string
+          reviewed: boolean
+          search_text: string | null
+          severity_level: number
+          source: string | null
+          source_license: string | null
+          subcategory: string | null
+          updated_at: string
+          user_situation: string
+          version: number
+        }
+        Insert: {
+          avoid_saying?: string[]
+          case_code: string
+          category: string
+          confidence?: number
+          context_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          detected_signals?: string[]
+          enabled?: boolean
+          escalation_criteria?: string | null
+          example_statements?: string[]
+          follow_up_questions?: string[]
+          id?: string
+          next_steps?: string[]
+          possible_patterns?: string[]
+          response_strategy: string
+          reviewed?: boolean
+          search_text?: string | null
+          severity_level?: number
+          source?: string | null
+          source_license?: string | null
+          subcategory?: string | null
+          updated_at?: string
+          user_situation: string
+          version?: number
+        }
+        Update: {
+          avoid_saying?: string[]
+          case_code?: string
+          category?: string
+          confidence?: number
+          context_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          detected_signals?: string[]
+          enabled?: boolean
+          escalation_criteria?: string | null
+          example_statements?: string[]
+          follow_up_questions?: string[]
+          id?: string
+          next_steps?: string[]
+          possible_patterns?: string[]
+          response_strategy?: string
+          reviewed?: boolean
+          search_text?: string | null
+          severity_level?: number
+          source?: string | null
+          source_license?: string | null
+          subcategory?: string | null
+          updated_at?: string
+          user_situation?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      psych_simulations: {
+        Row: {
+          admin_id: string
+          category: string
+          created_at: string
+          emotional_intensity: number
+          id: string
+          notes: string | null
+          overall_score: number | null
+          persona: string | null
+          scenario: string | null
+          scores: Json
+          severity_level: number
+          transcript: Json
+          turns: number
+          verdict: string | null
+        }
+        Insert: {
+          admin_id: string
+          category: string
+          created_at?: string
+          emotional_intensity?: number
+          id?: string
+          notes?: string | null
+          overall_score?: number | null
+          persona?: string | null
+          scenario?: string | null
+          scores?: Json
+          severity_level?: number
+          transcript?: Json
+          turns?: number
+          verdict?: string | null
+        }
+        Update: {
+          admin_id?: string
+          category?: string
+          created_at?: string
+          emotional_intensity?: number
+          id?: string
+          notes?: string | null
+          overall_score?: number | null
+          persona?: string | null
+          scenario?: string | null
+          scores?: Json
+          severity_level?: number
+          transcript?: Json
+          turns?: number
+          verdict?: string | null
+        }
+        Relationships: []
+      }
       reply_analytics: {
         Row: {
           conversation_id: string | null
@@ -690,6 +884,26 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      match_psych_cases: {
+        Args: { _limit?: number; _query: string }
+        Returns: {
+          avoid_saying: string[]
+          case_code: string
+          category: string
+          confidence: number
+          detected_signals: string[]
+          escalation_criteria: string
+          follow_up_questions: string[]
+          next_steps: string[]
+          possible_patterns: string[]
+          rank: number
+          response_strategy: string
+          severity_level: number
+          source: string
+          subcategory: string
+          user_situation: string
+        }[]
       }
     }
     Enums: {
