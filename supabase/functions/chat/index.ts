@@ -731,6 +731,11 @@ ${psychBlock}`;
     // Repeated negative pattern → escalate at least to moderate
     if (repeatedNegative && args.risk_level === "low") args.risk_level = "moderate";
 
+    // Psychological engine escalation — severity 4 always means high risk;
+    // severity 3 never stays "low".
+    if (psychSeverity.level === 4) args.risk_level = "high";
+    else if (psychSeverity.level === 3 && args.risk_level === "low") args.risk_level = "moderate";
+
     // Persist attachment metadata inline so the UI can render chips in history.
     const attachmentTag = atts.length
       ? `\n\n[[emosense-attachments:${JSON.stringify(atts.map(a => ({
