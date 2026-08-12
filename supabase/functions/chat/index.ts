@@ -756,6 +756,22 @@ ${psychBlock}`;
       { user_id: user.id, conversation_id: conversationId, role: "assistant", content: args.reply, message_length: args.reply.length },
     ]).select("id, role");
     const assistantMsgId = insertedMsgs?.find((m: any) => m.role === "assistant")?.id ?? null;
+    const userMsgId = insertedMsgs?.find((m: any) => m.role === "user")?.id ?? null;
+
+    // Emotional timeline entry — patterns and severity only, no raw chat text.
+    await recordAssessment(supabase, {
+      user_id: user.id,
+      conversation_id: conversationId,
+      message_id: userMsgId,
+      emotion: args.emotion ?? null,
+      severity_level: psychSeverity.level,
+      patterns: Array.from(new Set(psychCases.flatMap((c) => c.possible_patterns || []))).slice(0, 8),
+      matched_case_codes: psychCases.map((c) => c.case_code),
+      context_summary: psychSeverity.reasons.join("; ").slice(0, 500) || null,
+      strategy: `level_${psychSeverity.level}`,
+      uncertainty: psychSeverity.uncertainty,
+      escalation_triggered: psychSeverity.escalate,
+    });
 
     // Auto-title from the first user message if title is empty
     if (!conversationTitle) {
