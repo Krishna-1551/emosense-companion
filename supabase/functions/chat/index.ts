@@ -1,5 +1,9 @@
 // EmoSense AI chat — emotion detection + supportive reply via Lovable AI Gateway
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  retrievePsychCases, analyseContext, assessSeverity, buildPsychBlock,
+  recordAssessment, summariseTimeline,
+} from "../_shared/psych.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
