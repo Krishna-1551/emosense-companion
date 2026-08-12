@@ -289,6 +289,32 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
     const lastUserSentiments = (recent || []).filter(r => r.role === "user").slice(0, 3).map(r => r.sentiment);
     const repeatedNegative = lastUserSentiments.length >= 3 && lastUserSentiments.every(s => s === "negative");
 
+    // ---------------------------------------------------------------------
+    // PSYCHOLOGICAL INTELLIGENCE ENGINE
+    // Case retrieval → context analysis → severity assessment → strategy.
+    // ---------------------------------------------------------------------
+    const { data: priorAssessments } = await supabase
+      .from("psych_assessments")
+      .select("patterns, matched_case_codes, emotion, severity_level, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    const psychCases = await retrievePsychCases(supabase, composedUserMessage, [], 4);
+    const psychCtx = analyseContext(composedUserMessage, (priorAssessments as any) || []);
+    const psychSeverity = assessSeverity({
+      message: composedUserMessage,
+      ctx: psychCtx,
+      cases: psychCases,
+      repeatedNegative,
+      recentHighRisk,
+    });
+    const psychBlock = buildPsychBlock({
+      cases: psychCases,
+      severity: psychSeverity,
+      ctx: psychCtx,
+      timelineSummary: summariseTimeline((priorAssessments as any) || []),
+    });
+
     // Last 5 assistant replies in THIS conversation (anti-repetition)
     const { data: lastAssistant } = await supabase
       .from("messages")
