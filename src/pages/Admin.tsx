@@ -17,6 +17,7 @@ import { SupportThread } from "@/components/SupportThread";
 import { AdminMoodTimeline } from "@/components/AdminMoodTimeline";
 import { AdminSuggestionsPanel } from "@/components/AdminSuggestionsPanel";
 import { EvolutionEngine } from "@/components/EvolutionEngine";
+import { PsychIntelligencePanel } from "@/components/PsychIntelligencePanel";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend, CartesianGrid, ReferenceDot,
 } from "recharts";
