@@ -541,6 +541,8 @@ export async function recordAssessment(client: any, row: {
   strategy?: string | null;
   uncertainty?: number | null;
   escalation_triggered: boolean;
+  signal_state?: SignalState | null;
+  next_probe?: string | null;
 }) {
   try {
     const { error } = await client.from("psych_assessments").insert(row);
