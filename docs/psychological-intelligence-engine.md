@@ -41,3 +41,26 @@ it; bump `version` when revising wording.
 Assessments store patterns and severity only — never message content.
 Simulations use synthetic personas. The admin case library and simulator never
 surface real user conversations.
+
+## Reasoning before response
+
+Every meaningful turn now runs:
+
+```text
+message → signal extraction → conversation context → pattern update
+        → severity re-assessment → uncertainty → highest-value missing info
+        → empathetic reply → ONE targeted follow-up question
+```
+
+`extractSignals()` maps the message onto observable dimensions (duration,
+functional impact, sleep, energy, interest, concentration, appetite, social
+withdrawal, stressors, protective factors, risk indicators). `mergeSignalState()`
+keeps a running per-conversation state, persisted as `psych_assessments.signal_state`.
+`planNextProbe()` picks the single highest-value unknown dimension (safety first at
+level 4; functioning once two or more symptom signals are known; duration when the
+picture is thin) and stores it as `psych_assessments.next_probe`, so the model never
+re-asks a known dimension or fires a questionnaire.
+
+The core contract also bans settled causal explanations ("this is definitely
+burnout", "your system is craving a break") and intimate pet names ("hon",
+"sweetie"), keeping the tone warm but professional.

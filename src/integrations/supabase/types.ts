@@ -428,8 +428,10 @@ export type Database = {
           intensity: number | null
           matched_case_codes: string[]
           message_id: string | null
+          next_probe: string | null
           patterns: string[]
           severity_level: number
+          signal_state: Json | null
           strategy: string | null
           uncertainty: number | null
           user_id: string
@@ -444,8 +446,10 @@ export type Database = {
           intensity?: number | null
           matched_case_codes?: string[]
           message_id?: string | null
+          next_probe?: string | null
           patterns?: string[]
           severity_level?: number
+          signal_state?: Json | null
           strategy?: string | null
           uncertainty?: number | null
           user_id: string
@@ -460,8 +464,10 @@ export type Database = {
           intensity?: number | null
           matched_case_codes?: string[]
           message_id?: string | null
+          next_probe?: string | null
           patterns?: string[]
           severity_level?: number
+          signal_state?: Json | null
           strategy?: string | null
           uncertainty?: number | null
           user_id?: string

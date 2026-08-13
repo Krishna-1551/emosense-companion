@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   retrievePsychCases, analyseContext, assessSeverity, buildPsychBlock,
   recordAssessment, summariseTimeline,
+  extractSignals, mergeSignalState, planNextProbe,
 } from "../_shared/psych.ts";
 
 const corsHeaders = {
@@ -295,7 +296,7 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
     // ---------------------------------------------------------------------
     const { data: priorAssessments } = await supabase
       .from("psych_assessments")
-      .select("patterns, matched_case_codes, emotion, severity_level, created_at")
+      .select("patterns, matched_case_codes, emotion, severity_level, signal_state, conversation_id, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(8);
@@ -308,11 +309,38 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
       repeatedNegative,
       recentHighRisk,
     });
+
+    // Reasoning-before-response: rebuild the running signal state for THIS
+    // conversation, then decide the single highest-value missing dimension.
+    const priorRows = ((priorAssessments as any[]) || []);
+    const priorState = priorRows.find(
+      (r) => r.signal_state && (!conversationId || r.conversation_id === conversationId),
+    )?.signal_state ?? null;
+    const freshSignals = extractSignals(composedUserMessage, psychCtx);
+    const psychState = mergeSignalState(priorState, freshSignals, {
+      uncertainty: psychSeverity.uncertainty,
+    });
+    const psychProbe = planNextProbe(psychState, psychSeverity);
+    const priorLevels = priorRows
+      .filter((r) => !conversationId || r.conversation_id === conversationId)
+      .map((r) => Number(r.severity_level))
+      .filter((n) => Number.isFinite(n));
+    const psychTrend = priorLevels.length
+      ? psychSeverity.level > priorLevels[0]
+        ? `rising (was ${priorLevels[0]}, now ${psychSeverity.level})`
+        : psychSeverity.level < priorLevels[0]
+          ? `easing (was ${priorLevels[0]}, now ${psychSeverity.level})`
+          : `steady at ${psychSeverity.level}`
+      : "first assessment in this conversation";
+
     const psychBlock = buildPsychBlock({
       cases: psychCases,
       severity: psychSeverity,
       ctx: psychCtx,
       timelineSummary: summariseTimeline((priorAssessments as any) || []),
+      state: psychState,
+      probe: psychProbe,
+      trend: psychTrend,
     });
 
     // Last 5 assistant replies in THIS conversation (anti-repetition)
@@ -771,6 +799,8 @@ ${psychBlock}`;
       strategy: `level_${psychSeverity.level}`,
       uncertainty: psychSeverity.uncertainty,
       escalation_triggered: psychSeverity.escalate,
+      signal_state: { ...psychState, emotional_state: args.emotion ?? psychState.emotional_state },
+      next_probe: psychProbe.dimension,
     });
 
     // Auto-title from the first user message if title is empty
