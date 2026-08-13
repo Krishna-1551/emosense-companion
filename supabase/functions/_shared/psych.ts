@@ -255,7 +255,276 @@ ${uncertaintyLine}
 RETRIEVED CASE GUIDANCE (curated knowledge base — adapt, never recite):
 ${caseText}
 
-CONTINUITY RULE: if the recurring patterns above relate to what they just said, connect it explicitly ("this sounds like it's tied to the exam pressure you mentioned earlier") instead of treating it as a brand-new problem.`;
+${opts.state ? renderStateBlock(opts.state, opts.trend) : ""}
+
+${opts.probe ? renderProbeBlock(opts.probe, severity) : ""}
+
+REASONING ORDER FOR THIS REPLY (do this internally, in this order, before writing a single word):
+1. Signal extraction — what did they actually say, in their own terms?
+2. Conversation context — how does it fit the state above and earlier turns?
+3. Pattern update — what changed since last turn (new signal, worsening, improvement)?
+4. Severity re-assessment — is concern higher, lower or the same, and why?
+5. Uncertainty check — which explanations are still open?
+6. Highest-value missing information — pick the ONE dimension listed above.
+7. Write: brief genuine acknowledgment → accurate reflection of what they said → cautious interpretation only if warranted → exactly ONE targeted question.
+
+CONTINUITY RULE: if the recurring patterns above relate to what they just said, connect it explicitly ("this sounds like it's tied to the exam pressure you mentioned earlier") instead of treating it as a brand-new problem.
+
+DO NOT re-ask anything already marked "known" in the state above. Do not stack dimensions into one question. Never present the state or dimension names to the user.`;
+}
+
+// ---------------------------------------------------------------------------
+// 7. DYNAMIC PSYCHOLOGICAL STATE — structured observations, never diagnoses.
+// ---------------------------------------------------------------------------
+export type SignalState = {
+  emotional_state: string | null;
+  duration: string | null;
+  intensity: number | null;
+  functional_impact: string | null;
+  sleep_change: string | null;
+  energy_change: string | null;
+  interest_change: string | null;
+  concentration_change: string | null;
+  appetite_change: string | null;
+  social_withdrawal: string | null;
+  stressors: string[];
+  protective_factors: string[];
+  risk_indicators: string[];
+  uncertainty: number;
+  updated_turns: number;
+};
+
+export const EMPTY_SIGNAL_STATE: SignalState = {
+  emotional_state: null, duration: null, intensity: null, functional_impact: null,
+  sleep_change: null, energy_change: null, interest_change: null,
+  concentration_change: null, appetite_change: null, social_withdrawal: null,
+  stressors: [], protective_factors: [], risk_indicators: [],
+  uncertainty: 1, updated_turns: 0,
+};
+
+const first = (t: string, pairs: [RegExp, string][]): string | null => {
+  for (const [re, label] of pairs) if (re.test(t)) return label;
+  return null;
+};
+
+/** Extract observable signals from a single message (rule-based, conservative). */
+export function extractSignals(message: string, ctx: ContextSignals): Partial<SignalState> {
+  const t = String(message || "").toLowerCase();
+  const out: Partial<SignalState> = {};
+
+  const duration = first(t, [
+    [/\b(years?|saal|saalo)\b/, "months+ (long-standing)"],
+    [/\b(months?|mahin[eo])\b/, "several months"],
+    [/\b(weeks?|haft[eo])\b/, "several weeks"],
+    [/\b(few days|couple of days|kai din)\b/, "a few days"],
+    [/\b(today|aaj|right now|abhi)\b/, "today only"],
+    [/\b(every ?day|all the time|always|roz|hamesha)\b/, "near-daily, duration unclear"],
+  ]);
+  if (duration) out.duration = duration;
+
+  const sleep = first(t, [
+    [/\b(can'?t sleep|insomnia|not sleeping|neend nahi|awake all night|4am|3am)\b/, "reduced / disrupted sleep"],
+    [/\b(sleeping (a lot|too much|all day)|oversleep\w*|zyada so)\b/, "increased sleep"],
+  ]);
+  if (sleep) out.sleep_change = sleep;
+
+  const energy = first(t, [
+    [/\b(no energy|exhaust\w*|drained|fatigue\w*|thak\w*|so tired)\b/, "low energy / fatigue"],
+    [/\b(restless|can'?t sit still|wired)\b/, "restless / activated"],
+  ]);
+  if (energy) out.energy_change = energy;
+
+  const interest = first(t, [
+    [/\b(lost interest|no interest|nothing (matters|interests)|don'?t enjoy|mann nahi|feels pointless)\b/, "reduced interest / anhedonia-type signal"],
+  ]);
+  if (interest) out.interest_change = interest;
+
+  const conc = first(t, [
+    [/\b(can'?t (focus|concentrate)|forgetting|blank out|dhyan nahi)\b/, "concentration difficulty"],
+  ]);
+  if (conc) out.concentration_change = conc;
+
+  const appetite = first(t, [
+    [/\b(not eating|no appetite|skipping meals|khana nahi)\b/, "reduced appetite"],
+    [/\b(eating (too much|a lot)|binge|overeat\w*)\b/, "increased eating"],
+  ]);
+  if (appetite) out.appetite_change = appetite;
+
+  const withdrawal = first(t, [
+    [/\b(avoid\w* (people|everyone|friends)|stopped talking|don'?t want to (meet|see anyone)|alone all|isolat\w*|akela)\b/, "pulling away from people"],
+  ]);
+  if (withdrawal) out.social_withdrawal = withdrawal;
+
+  if (ctx.functional_impact) out.functional_impact = "reported difficulty with work / study / daily tasks";
+
+  const stressors: string[] = [];
+  const addIf = (re: RegExp, label: string) => { if (re.test(t)) stressors.push(label); };
+  addIf(/\b(exam|semester|assignment|college|padhai|marks)\b/, "academic pressure");
+  addIf(/\b(boss|manager|office|work ?load|deadline|job|naukri)\b/, "work pressure");
+  addIf(/\b(money|salary|loan|paisa|rent|debt)\b/, "financial strain");
+  addIf(/\b(breakup|partner|girlfriend|boyfriend|husband|wife|relationship)\b/, "relationship difficulty");
+  addIf(/\b(parents|family|mummy|papa|ghar (par|me))\b/, "family conflict / expectations");
+  addIf(/\b(health|illness|pain|hospital|diagnos\w*)\b/, "health concern");
+  addIf(/\b(alone|lonely|no friends|akela)\b/, "loneliness");
+  if (stressors.length) out.stressors = stressors.slice(0, 5);
+
+  const protect: string[] = [];
+  if (/\b(friend|sister|brother|mom|dad|partner|therapist|counsellor|dost|bhai|didi)\b/.test(t)) protect.push("mentions at least one person in their life");
+  if (/\b(gym|walk|run|music|prayer|journal|meditat\w*)\b/.test(t)) protect.push("has a self-regulating activity");
+  if (/\b(therapy|counsel\w*|psychiatrist|medicat\w*)\b/.test(t)) protect.push("already in contact with professional support");
+  if (protect.length) out.protective_factors = protect;
+
+  const risks: string[] = [];
+  if (ctx.hopelessness) risks.push("hopelessness / worthlessness language");
+  if (ctx.crisis) risks.push("safety-related language");
+  if (ctx.somatic) risks.push("somatic distress");
+  if (risks.length) out.risk_indicators = risks;
+
+  if (ctx.duration_hint || duration) out.emotional_state = out.emotional_state ?? null;
+  return out;
+}
+
+/** Merge the newly extracted signals into the running state. */
+export function mergeSignalState(
+  prior: Partial<SignalState> | null | undefined,
+  fresh: Partial<SignalState>,
+  extras: { emotion?: string | null; intensity?: number | null; uncertainty?: number } = {},
+): SignalState {
+  const base: SignalState = { ...EMPTY_SIGNAL_STATE, ...(prior || {}) } as SignalState;
+  const scalarKeys: (keyof SignalState)[] = [
+    "duration", "functional_impact", "sleep_change", "energy_change", "interest_change",
+    "concentration_change", "appetite_change", "social_withdrawal",
+  ];
+  for (const k of scalarKeys) {
+    const v = (fresh as any)[k];
+    if (v) (base as any)[k] = v;
+  }
+  const uniq = (a: string[] = [], b: string[] = []) => Array.from(new Set([...a, ...b])).slice(0, 6);
+  base.stressors = uniq(base.stressors, fresh.stressors);
+  base.protective_factors = uniq(base.protective_factors, fresh.protective_factors);
+  base.risk_indicators = uniq(base.risk_indicators, fresh.risk_indicators);
+  if (extras.emotion) base.emotional_state = extras.emotion;
+  if (typeof extras.intensity === "number") base.intensity = extras.intensity;
+  if (typeof extras.uncertainty === "number") base.uncertainty = extras.uncertainty;
+  base.updated_turns = (base.updated_turns || 0) + 1;
+  return base;
+}
+
+/** Which dimension is the highest-value thing still unknown? */
+export type ProbePlan = { dimension: string; why: string; examples: string[]; known: string[]; missing: string[] };
+
+const PROBE_LIBRARY: { key: keyof SignalState; dimension: string; examples: string[] }[] = [
+  { key: "functional_impact", dimension: "impact on daily functioning", examples: [
+    "How much is this getting in the way of the things you normally have to do — work, studies, basic routine?",
+    "Are you still managing your day-to-day, or has it started slipping?",
+  ]},
+  { key: "duration", dimension: "duration / onset", examples: [
+    "Has this been mostly the last few days, or has it been going on for weeks or longer?",
+    "When did you first notice things shifting like this?",
+  ]},
+  { key: "sleep_change", dimension: "sleep", examples: [
+    "How has your sleep been through this — more than usual, less, or broken?",
+  ]},
+  { key: "energy_change", dimension: "energy levels", examples: [
+    "Where's your energy at during the day — is it low even after rest?",
+  ]},
+  { key: "interest_change", dimension: "interest / enjoyment", examples: [
+    "Are the things you'd normally enjoy still doing anything for you?",
+  ]},
+  { key: "concentration_change", dimension: "concentration", examples: [
+    "Are you able to hold your focus on things, or does your mind keep slipping?",
+  ]},
+  { key: "appetite_change", dimension: "appetite", examples: [
+    "Has your appetite changed at all recently?",
+  ]},
+  { key: "social_withdrawal", dimension: "social connection / withdrawal", examples: [
+    "Have you been keeping in touch with people, or pulling back a bit?",
+  ]},
+  { key: "protective_factors", dimension: "available support", examples: [
+    "Is there anyone in your life who knows how heavy this has been?",
+  ]},
+];
+
+export function planNextProbe(state: SignalState, severity: SeverityResult): ProbePlan {
+  const has = (k: keyof SignalState) => {
+    const v = (state as any)[k];
+    return Array.isArray(v) ? v.length > 0 : Boolean(v);
+  };
+  const known = PROBE_LIBRARY.filter((p) => has(p.key)).map((p) => p.dimension);
+  const missing = PROBE_LIBRARY.filter((p) => !has(p.key));
+
+  if (severity.level === 4) {
+    return {
+      dimension: "immediate safety and someone physically nearby",
+      why: "safety-critical turn — nothing else takes priority",
+      examples: [
+        "I need to ask you directly — are you safe right now?",
+        "Is there someone who could be with you right now?",
+      ],
+      known, missing: missing.map((m) => m.dimension),
+    };
+  }
+
+  // Order of value: if several symptom dimensions are known, functioning matters most;
+  // if almost nothing is known, duration comes first.
+  const symptomsKnown = ["sleep_change", "energy_change", "interest_change", "concentration_change", "appetite_change"]
+    .filter((k) => has(k as keyof SignalState)).length;
+
+  const preferredOrder = symptomsKnown >= 2
+    ? ["functional_impact", "duration", "social_withdrawal", "protective_factors"]
+    : has("duration")
+      ? ["functional_impact", "sleep_change", "energy_change", "interest_change", "concentration_change", "social_withdrawal", "protective_factors"]
+      : ["duration", "functional_impact", "sleep_change", "energy_change", "interest_change"];
+
+  const pick = preferredOrder.map((k) => missing.find((m) => m.key === k)).find(Boolean) || missing[0];
+  if (!pick) {
+    return {
+      dimension: "how they'd like to use this conversation next",
+      why: "the main dimensions are already covered — move towards a concrete next step or professional support",
+      examples: [
+        "Given everything you've told me, would it help to talk about what a next step could look like?",
+      ],
+      known, missing: [],
+    };
+  }
+  return {
+    dimension: pick.dimension,
+    why: symptomsKnown >= 2
+      ? "several symptom-level signals are present, so how much life is being affected is the most informative next data point"
+      : "the picture is still thin — this is the dimension that would most change the assessment",
+    examples: pick.examples,
+    known,
+    missing: missing.map((m) => m.dimension),
+  };
+}
+
+function renderStateBlock(s: SignalState, trend?: string): string {
+  const line = (label: string, v: any) => `- ${label}: ${Array.isArray(v) ? (v.length ? v.join(", ") : "unknown") : (v ?? "unknown")}`;
+  return `DYNAMIC PSYCHOLOGICAL STATE (observations across this conversation — patterns, NOT diagnoses; never read these labels out loud):
+${line("emotional_state", s.emotional_state)}
+${line("duration", s.duration)}
+${line("intensity", s.intensity)}
+${line("functional_impact", s.functional_impact)}
+${line("sleep_change", s.sleep_change)}
+${line("energy_change", s.energy_change)}
+${line("interest_change", s.interest_change)}
+${line("concentration_change", s.concentration_change)}
+${line("appetite_change", s.appetite_change)}
+${line("social_withdrawal", s.social_withdrawal)}
+${line("stressors", s.stressors)}
+${line("protective_factors", s.protective_factors)}
+${line("risk_indicators", s.risk_indicators)}
+- turns observed: ${s.updated_turns}
+${trend ? `- severity trend: ${trend}` : ""}`;
+}
+
+function renderProbeBlock(p: ProbePlan, severity: SeverityResult): string {
+  return `HIGHEST-VALUE MISSING INFORMATION → ask about: ${p.dimension}
+- why this one: ${p.why}
+- phrasing to adapt (never copy verbatim, match their language and tone): ${p.examples.map((e) => `"${e}"`).join(" | ")}
+- already known, do NOT ask again: ${p.known.join(", ") || "nothing yet"}
+- still unknown for later turns (one per turn, never a questionnaire): ${p.missing.join(", ") || "none"}
+- ask exactly ONE question this turn${severity.level === 4 ? " — the safety question above" : ""}. If the question-suppression rule elsewhere forbids questions this turn, reflect the pattern instead and hold this question for next turn.`;
 }
 
 /** 6. EMOTIONAL TIMELINE — persist the assessment (no raw chat content). */
