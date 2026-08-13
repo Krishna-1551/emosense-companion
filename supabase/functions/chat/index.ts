@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   retrievePsychCases, analyseContext, assessSeverity, buildPsychBlock,
   recordAssessment, summariseTimeline,
+  extractSignals, mergeSignalState, planNextProbe,
 } from "../_shared/psych.ts";
 
 const corsHeaders = {
@@ -317,7 +318,6 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
     )?.signal_state ?? null;
     const freshSignals = extractSignals(composedUserMessage, psychCtx);
     const psychState = mergeSignalState(priorState, freshSignals, {
-      emotion: (args as any)?.emotion ?? null,
       uncertainty: psychSeverity.uncertainty,
     });
     const psychProbe = planNextProbe(psychState, psychSeverity);
@@ -799,6 +799,8 @@ ${psychBlock}`;
       strategy: `level_${psychSeverity.level}`,
       uncertainty: psychSeverity.uncertainty,
       escalation_triggered: psychSeverity.escalate,
+      signal_state: { ...psychState, emotional_state: args.emotion ?? psychState.emotional_state },
+      next_probe: psychProbe.dimension,
     });
 
     // Auto-title from the first user message if title is empty
