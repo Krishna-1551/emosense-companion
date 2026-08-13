@@ -219,6 +219,9 @@ export function buildPsychBlock(opts: {
   severity: SeverityResult;
   ctx: ContextSignals;
   timelineSummary?: string;
+  state?: SignalState;
+  probe?: ProbePlan;
+  trend?: string;
 }): string {
   const { cases, severity, ctx } = opts;
   const caseText = cases.length
