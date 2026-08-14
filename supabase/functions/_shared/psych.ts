@@ -222,7 +222,9 @@ export function buildPsychBlock(opts: {
   state?: SignalState;
   probe?: ProbePlan;
   trend?: string;
+  askedQuestions?: string[];
 }): string {
+
   const { cases, severity, ctx } = opts;
   const caseText = cases.length
     ? cases.map((c) => [
