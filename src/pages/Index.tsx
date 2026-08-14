@@ -310,8 +310,13 @@ const Index = () => {
 
     if (delayMs === null) return;
 
+    // Count idling from the later of: last activity, or the moment speech ended.
+    const idleStart = Math.max(lastActivity.getTime(), speechEndedAt);
+    const wait = Math.max(1_000, delayMs - (Date.now() - idleStart));
+
     const t = setTimeout(() => {
-      const idleMs = Date.now() - lastActivity.getTime();
+      if (voice.speaking) return; // still speaking — a later rerun will handle it
+      const idleMs = Date.now() - idleStart;
       if (idleMs < delayMs!) return;
 
       const recentAssistant = messages.filter(m => m.role === "assistant").slice(-5).map(m => m.content);
@@ -322,9 +327,10 @@ const Index = () => {
       if (voice.enabled) speakReply(pick);
       setNudgeSent(true);
 
-    }, delayMs);
+    }, wait);
     return () => clearTimeout(t);
-  }, [lastActivity, messages, nudgeSent]);
+  }, [lastActivity, messages, nudgeSent, voice.speaking, speechEndedAt]);
+
 
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
