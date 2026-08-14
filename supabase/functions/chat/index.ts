@@ -347,6 +347,8 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
       state: psychState,
       probe: psychProbe,
       trend: psychTrend,
+      askedQuestions,
+
     });
 
     // Last 5 assistant replies in THIS conversation (anti-repetition)
