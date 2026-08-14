@@ -245,14 +245,23 @@ const Index = () => {
     return () => clearInterval(t);
   }, [lastActivity, messages]);
 
+  // Voice beta: never talk over a reply that is still being spoken. The idle
+  // clock only starts once speech has finished.
+  const [speechEndedAt, setSpeechEndedAt] = useState(0);
+  useEffect(() => {
+    if (!voice.speaking) setSpeechEndedAt(Date.now());
+  }, [voice.speaking]);
+
   // Short inactivity nudge — emotion-aware, only after user sends, max once per idle period
   useEffect(() => {
     if (nudgeSent) return;
+    if (voice.speaking) return; // wait for the spoken reply to finish completely
     if (messages.length === 0) return;
     const userMsgs = messages.filter(m => m.role === "user");
     if (userMsgs.length === 0) return; // never nudge before user initiates
     const last = messages[messages.length - 1];
     if (last.role !== "assistant") return;
+
 
     // Decide IF and WHEN to nudge based on the last user emotion + risk.
     // Default: STAY SILENT. Only check in when there's a real emotional signal.
@@ -301,8 +310,13 @@ const Index = () => {
 
     if (delayMs === null) return;
 
+    // Count idling from the later of: last activity, or the moment speech ended.
+    const idleStart = Math.max(lastActivity.getTime(), speechEndedAt);
+    const wait = Math.max(1_000, delayMs - (Date.now() - idleStart));
+
     const t = setTimeout(() => {
-      const idleMs = Date.now() - lastActivity.getTime();
+      if (voice.speaking) return; // still speaking — a later rerun will handle it
+      const idleMs = Date.now() - idleStart;
       if (idleMs < delayMs!) return;
 
       const recentAssistant = messages.filter(m => m.role === "assistant").slice(-5).map(m => m.content);
@@ -313,9 +327,10 @@ const Index = () => {
       if (voice.enabled) speakReply(pick);
       setNudgeSent(true);
 
-    }, delayMs);
+    }, wait);
     return () => clearTimeout(t);
-  }, [lastActivity, messages, nudgeSent]);
+  }, [lastActivity, messages, nudgeSent, voice.speaking, speechEndedAt]);
+
 
   const send = async (override?: string) => {
     const text = (override ?? input).trim();

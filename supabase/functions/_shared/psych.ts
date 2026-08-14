@@ -222,7 +222,9 @@ export function buildPsychBlock(opts: {
   state?: SignalState;
   probe?: ProbePlan;
   trend?: string;
+  askedQuestions?: string[];
 }): string {
+
   const { cases, severity, ctx } = opts;
   const caseText = cases.length
     ? cases.map((c) => [
@@ -259,18 +261,23 @@ ${opts.state ? renderStateBlock(opts.state, opts.trend) : ""}
 
 ${opts.probe ? renderProbeBlock(opts.probe, severity) : ""}
 
+${renderMemoryBlock(opts.state, opts.askedQuestions)}
+
 REASONING ORDER FOR THIS REPLY (do this internally, in this order, before writing a single word):
-1. Signal extraction — what did they actually say, in their own terms?
-2. Conversation context — how does it fit the state above and earlier turns?
-3. Pattern update — what changed since last turn (new signal, worsening, improvement)?
-4. Severity re-assessment — is concern higher, lower or the same, and why?
-5. Uncertainty check — which explanations are still open?
-6. Highest-value missing information — pick the ONE dimension listed above.
-7. Write: brief genuine acknowledgment → accurate reflection of what they said → cautious interpretation only if warranted → exactly ONE targeted question.
+1. CONVERSATION MEMORY CHECK — re-read the KNOWN list and the questions already asked. Anything there is settled; it must not be asked again.
+2. Signal extraction — what did they actually say, in their own terms?
+3. Conversation context — how does it fit the state above and earlier turns?
+4. Pattern update — what changed since last turn (new signal, worsening, improvement)?
+5. Severity re-assessment — is concern higher, lower or the same, and why?
+6. Uncertainty check — which explanations are still open?
+7. Highest-value missing information — pick the ONE dimension listed above from UNKNOWN.
+8. Write: brief genuine acknowledgment → accurate summary of the pattern (using the KNOWN facts, e.g. "for several weeks now") → cautious statement of why the pattern matters, with multiple explanations still open → exactly ONE new targeted question.
 
 CONTINUITY RULE: if the recurring patterns above relate to what they just said, connect it explicitly ("this sounds like it's tied to the exam pressure you mentioned earlier") instead of treating it as a brand-new problem.
 
-DO NOT re-ask anything already marked "known" in the state above. Do not stack dimensions into one question. Never present the state or dimension names to the user.`;
+DO NOT re-ask anything already marked "known" in the state above, and do not re-ask any question already asked earlier in this conversation. Do not stack dimensions into one question. Never present the state or dimension names to the user.
+STYLE: warm, respectful, professional. No pet names ("hon", "sweetie", "dear", "babe") unless the person clearly uses that register first. No poetic or flowery embellishment — psychological reasoning over decoration.`;
+
 }
 
 // ---------------------------------------------------------------------------
@@ -560,4 +567,69 @@ export function summariseTimeline(rows: { emotion: string | null; severity_level
     return `${d.toISOString().slice(5, 10)} ${r.emotion || "unknown"}/L${r.severity_level}`;
   });
   return parts.join(" → ");
+}
+
+// ---------------------------------------------------------------------------
+// 8. CONVERSATION MEMORY — never re-ask what is already established.
+// ---------------------------------------------------------------------------
+
+/** Human-readable KNOWN / UNKNOWN ledger + the questions already put to the user. */
+function renderMemoryBlock(state?: SignalState | null, asked?: string[]): string {
+  const known: string[] = [];
+  const unknown: string[] = [];
+  if (state) {
+    for (const p of PROBE_LIBRARY) {
+      const v = (state as any)[p.key];
+      const has = Array.isArray(v) ? v.length > 0 : Boolean(v);
+      if (has) known.push(`${p.key} = ${Array.isArray(v) ? v.join(", ") : v}`);
+      else unknown.push(`${p.key} = unknown`);
+    }
+    if (state.duration) known.push(`duration = ${state.duration}`);
+    if (state.stressors?.length) known.push(`stressors = ${state.stressors.join(", ")}`);
+    if (state.risk_indicators?.length) known.push(`risk_indicators = ${state.risk_indicators.join(", ")}`);
+  }
+  const askedLines = (asked || []).slice(-8);
+  return `CONVERSATION MEMORY LEDGER (established facts — treat as already answered):
+KNOWN:
+${known.length ? known.map((k) => `  ${k}`).join("\n") : "  (nothing established yet)"}
+UNKNOWN (choose the next question from here only):
+${unknown.length ? unknown.map((k) => `  ${k}`).join("\n") : "  (all main dimensions covered — move towards a next step or professional support)"}
+QUESTIONS ALREADY ASKED IN THIS CONVERSATION (never repeat these or a paraphrase of them):
+${askedLines.length ? askedLines.map((q) => `  - "${q}"`).join("\n") : "  (none yet)"}
+
+CRITICAL MEMORY RULE: before writing, verify your question is not answered by any KNOWN item and is not a rewording of an already-asked question. If the only question you can think of is already answered, ask nothing this turn and instead reflect the pattern and offer one small concrete step.`;
+}
+
+/** Replay earlier user messages so facts stated in past turns count as KNOWN. */
+export function foldHistorySignals(
+  prior: Partial<SignalState> | null | undefined,
+  userMessages: string[],
+): Partial<SignalState> {
+  let state: Partial<SignalState> = { ...(prior || {}) };
+  for (const msg of userMessages.slice(-12)) {
+    if (!msg?.trim()) continue;
+    const ctx = analyseContext(msg);
+    const fresh = extractSignals(msg, ctx);
+    const merged = mergeSignalState(state, fresh);
+    merged.updated_turns = (state.updated_turns as number) || 0; // don't inflate turn count
+    state = merged;
+  }
+  return state;
+}
+
+/** Pull the questions the assistant has already asked, most recent last. */
+export function collectAskedQuestions(
+  history: { role?: string; content?: string }[] = [],
+  limit = 8,
+): string[] {
+  const out: string[] = [];
+  for (const m of history) {
+    if (m?.role !== "assistant" || typeof m.content !== "string") continue;
+    const qs = m.content.match(/[^.!?\n]*\?/g) || [];
+    for (const q of qs) {
+      const clean = q.replace(/\s+/g, " ").trim();
+      if (clean.length > 8) out.push(clean.slice(0, 160));
+    }
+  }
+  return out.slice(-limit);
 }

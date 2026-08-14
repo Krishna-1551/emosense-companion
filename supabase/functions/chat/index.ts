@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   retrievePsychCases, analyseContext, assessSeverity, buildPsychBlock,
   recordAssessment, summariseTimeline,
-  extractSignals, mergeSignalState, planNextProbe,
+  extractSignals, mergeSignalState, planNextProbe, foldHistorySignals, collectAskedQuestions,
 } from "../_shared/psych.ts";
 
 const corsHeaders = {
@@ -316,11 +316,17 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
     const priorState = priorRows.find(
       (r) => r.signal_state && (!conversationId || r.conversation_id === conversationId),
     )?.signal_state ?? null;
+    const historyUserMessages = ((history as any[]) || [])
+      .filter((m) => m?.role === "user" && typeof m.content === "string")
+      .map((m) => m.content as string);
+    const rememberedState = foldHistorySignals(priorState, historyUserMessages);
     const freshSignals = extractSignals(composedUserMessage, psychCtx);
-    const psychState = mergeSignalState(priorState, freshSignals, {
+    const psychState = mergeSignalState(rememberedState, freshSignals, {
       uncertainty: psychSeverity.uncertainty,
     });
+    const askedQuestions = collectAskedQuestions((history as any[]) || []);
     const psychProbe = planNextProbe(psychState, psychSeverity);
+
     const priorLevels = priorRows
       .filter((r) => !conversationId || r.conversation_id === conversationId)
       .map((r) => Number(r.severity_level))
@@ -341,6 +347,8 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
       state: psychState,
       probe: psychProbe,
       trend: psychTrend,
+      askedQuestions,
+
     });
 
     // Last 5 assistant replies in THIS conversation (anti-repetition)
