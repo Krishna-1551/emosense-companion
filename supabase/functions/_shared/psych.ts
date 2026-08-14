@@ -261,18 +261,23 @@ ${opts.state ? renderStateBlock(opts.state, opts.trend) : ""}
 
 ${opts.probe ? renderProbeBlock(opts.probe, severity) : ""}
 
+${renderMemoryBlock(opts.state, opts.askedQuestions)}
+
 REASONING ORDER FOR THIS REPLY (do this internally, in this order, before writing a single word):
-1. Signal extraction — what did they actually say, in their own terms?
-2. Conversation context — how does it fit the state above and earlier turns?
-3. Pattern update — what changed since last turn (new signal, worsening, improvement)?
-4. Severity re-assessment — is concern higher, lower or the same, and why?
-5. Uncertainty check — which explanations are still open?
-6. Highest-value missing information — pick the ONE dimension listed above.
-7. Write: brief genuine acknowledgment → accurate reflection of what they said → cautious interpretation only if warranted → exactly ONE targeted question.
+1. CONVERSATION MEMORY CHECK — re-read the KNOWN list and the questions already asked. Anything there is settled; it must not be asked again.
+2. Signal extraction — what did they actually say, in their own terms?
+3. Conversation context — how does it fit the state above and earlier turns?
+4. Pattern update — what changed since last turn (new signal, worsening, improvement)?
+5. Severity re-assessment — is concern higher, lower or the same, and why?
+6. Uncertainty check — which explanations are still open?
+7. Highest-value missing information — pick the ONE dimension listed above from UNKNOWN.
+8. Write: brief genuine acknowledgment → accurate summary of the pattern (using the KNOWN facts, e.g. "for several weeks now") → cautious statement of why the pattern matters, with multiple explanations still open → exactly ONE new targeted question.
 
 CONTINUITY RULE: if the recurring patterns above relate to what they just said, connect it explicitly ("this sounds like it's tied to the exam pressure you mentioned earlier") instead of treating it as a brand-new problem.
 
-DO NOT re-ask anything already marked "known" in the state above. Do not stack dimensions into one question. Never present the state or dimension names to the user.`;
+DO NOT re-ask anything already marked "known" in the state above, and do not re-ask any question already asked earlier in this conversation. Do not stack dimensions into one question. Never present the state or dimension names to the user.
+STYLE: warm, respectful, professional. No pet names ("hon", "sweetie", "dear", "babe") unless the person clearly uses that register first. No poetic or flowery embellishment — psychological reasoning over decoration.`;
+
 }
 
 // ---------------------------------------------------------------------------
