@@ -568,3 +568,68 @@ export function summariseTimeline(rows: { emotion: string | null; severity_level
   });
   return parts.join(" → ");
 }
+
+// ---------------------------------------------------------------------------
+// 8. CONVERSATION MEMORY — never re-ask what is already established.
+// ---------------------------------------------------------------------------
+
+/** Human-readable KNOWN / UNKNOWN ledger + the questions already put to the user. */
+function renderMemoryBlock(state?: SignalState | null, asked?: string[]): string {
+  const known: string[] = [];
+  const unknown: string[] = [];
+  if (state) {
+    for (const p of PROBE_LIBRARY) {
+      const v = (state as any)[p.key];
+      const has = Array.isArray(v) ? v.length > 0 : Boolean(v);
+      if (has) known.push(`${p.key} = ${Array.isArray(v) ? v.join(", ") : v}`);
+      else unknown.push(`${p.key} = unknown`);
+    }
+    if (state.duration) known.push(`duration = ${state.duration}`);
+    if (state.stressors?.length) known.push(`stressors = ${state.stressors.join(", ")}`);
+    if (state.risk_indicators?.length) known.push(`risk_indicators = ${state.risk_indicators.join(", ")}`);
+  }
+  const askedLines = (asked || []).slice(-8);
+  return `CONVERSATION MEMORY LEDGER (established facts — treat as already answered):
+KNOWN:
+${known.length ? known.map((k) => `  ${k}`).join("\n") : "  (nothing established yet)"}
+UNKNOWN (choose the next question from here only):
+${unknown.length ? unknown.map((k) => `  ${k}`).join("\n") : "  (all main dimensions covered — move towards a next step or professional support)"}
+QUESTIONS ALREADY ASKED IN THIS CONVERSATION (never repeat these or a paraphrase of them):
+${askedLines.length ? askedLines.map((q) => `  - "${q}"`).join("\n") : "  (none yet)"}
+
+CRITICAL MEMORY RULE: before writing, verify your question is not answered by any KNOWN item and is not a rewording of an already-asked question. If the only question you can think of is already answered, ask nothing this turn and instead reflect the pattern and offer one small concrete step.`;
+}
+
+/** Replay earlier user messages so facts stated in past turns count as KNOWN. */
+export function foldHistorySignals(
+  prior: Partial<SignalState> | null | undefined,
+  userMessages: string[],
+): Partial<SignalState> {
+  let state: Partial<SignalState> = { ...(prior || {}) };
+  for (const msg of userMessages.slice(-12)) {
+    if (!msg?.trim()) continue;
+    const ctx = analyseContext(msg);
+    const fresh = extractSignals(msg, ctx);
+    const merged = mergeSignalState(state, fresh);
+    merged.updated_turns = (state.updated_turns as number) || 0; // don't inflate turn count
+    state = merged;
+  }
+  return state;
+}
+
+/** Pull the questions the assistant has already asked, most recent last. */
+export function collectAskedQuestions(
+  history: { role?: string; content?: string }[] = [],
+  limit = 8,
+): string[] {
+  const out: string[] = [];
+  for (const m of history) {
+    if (m?.role !== "assistant" || typeof m.content !== "string") continue;
+    const qs = m.content.match(/[^.!?\n]*\?/g) || [];
+    for (const q of qs) {
+      const clean = q.replace(/\s+/g, " ").trim();
+      if (clean.length > 8) out.push(clean.slice(0, 160));
+    }
+  }
+  return out.slice(-limit);
+}
