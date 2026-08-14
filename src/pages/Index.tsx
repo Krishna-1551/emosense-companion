@@ -245,14 +245,23 @@ const Index = () => {
     return () => clearInterval(t);
   }, [lastActivity, messages]);
 
+  // Voice beta: never talk over a reply that is still being spoken. The idle
+  // clock only starts once speech has finished.
+  const [speechEndedAt, setSpeechEndedAt] = useState(0);
+  useEffect(() => {
+    if (!voice.speaking) setSpeechEndedAt(Date.now());
+  }, [voice.speaking]);
+
   // Short inactivity nudge — emotion-aware, only after user sends, max once per idle period
   useEffect(() => {
     if (nudgeSent) return;
+    if (voice.speaking) return; // wait for the spoken reply to finish completely
     if (messages.length === 0) return;
     const userMsgs = messages.filter(m => m.role === "user");
     if (userMsgs.length === 0) return; // never nudge before user initiates
     const last = messages[messages.length - 1];
     if (last.role !== "assistant") return;
+
 
     // Decide IF and WHEN to nudge based on the last user emotion + risk.
     // Default: STAY SILENT. Only check in when there's a real emotional signal.
