@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   retrievePsychCases, analyseContext, assessSeverity, buildPsychBlock,
   recordAssessment, summariseTimeline,
-  extractSignals, mergeSignalState, planNextProbe,
+  extractSignals, mergeSignalState, planNextProbe, foldHistorySignals, collectAskedQuestions,
 } from "../_shared/psych.ts";
 
 const corsHeaders = {
