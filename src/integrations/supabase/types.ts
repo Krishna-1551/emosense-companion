@@ -14,6 +14,178 @@ export type Database = {
   }
   public: {
     Tables: {
+      care_events: {
+        Row: {
+          confirmed_safe: boolean | null
+          conversation_id: string | null
+          created_at: string
+          event_name: string
+          follow_up_status: string | null
+          human_support_requested: boolean
+          id: string
+          risk_band: string | null
+          support_level: number | null
+          user_id: string
+        }
+        Insert: {
+          confirmed_safe?: boolean | null
+          conversation_id?: string | null
+          created_at?: string
+          event_name: string
+          follow_up_status?: string | null
+          human_support_requested?: boolean
+          id?: string
+          risk_band?: string | null
+          support_level?: number | null
+          user_id: string
+        }
+        Update: {
+          confirmed_safe?: boolean | null
+          conversation_id?: string | null
+          created_at?: string
+          event_name?: string
+          follow_up_status?: string | null
+          human_support_requested?: boolean
+          id?: string
+          risk_band?: string | null
+          support_level?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      care_follow_ups: {
+        Row: {
+          choice_label: string
+          conversation_id: string | null
+          created_at: string
+          due_at: string
+          id: string
+          outcome: string | null
+          responded_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          choice_label: string
+          conversation_id?: string | null
+          created_at?: string
+          due_at: string
+          id?: string
+          outcome?: string | null
+          responded_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          choice_label?: string
+          conversation_id?: string | null
+          created_at?: string
+          due_at?: string
+          id?: string
+          outcome?: string | null
+          responded_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_follow_ups_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      care_safety_plans: {
+        Row: {
+          calming_activities: string | null
+          created_at: string
+          follow_up_preference: string | null
+          people_to_contact: string | null
+          professional_resources: string | null
+          reason_to_pause: string | null
+          safer_places: string | null
+          updated_at: string
+          user_id: string
+          warning_signs: string | null
+        }
+        Insert: {
+          calming_activities?: string | null
+          created_at?: string
+          follow_up_preference?: string | null
+          people_to_contact?: string | null
+          professional_resources?: string | null
+          reason_to_pause?: string | null
+          safer_places?: string | null
+          updated_at?: string
+          user_id: string
+          warning_signs?: string | null
+        }
+        Update: {
+          calming_activities?: string | null
+          created_at?: string
+          follow_up_preference?: string | null
+          people_to_contact?: string | null
+          professional_resources?: string | null
+          reason_to_pause?: string | null
+          safer_places?: string | null
+          updated_at?: string
+          user_id?: string
+          warning_signs?: string | null
+        }
+        Relationships: []
+      }
+      care_trusted_contacts: {
+        Row: {
+          consent_urgent: boolean
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          preferred_method: string
+          relationship: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          consent_urgent?: boolean
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          preferred_method?: string
+          relationship?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          consent_urgent?: boolean
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          preferred_method?: string
+          relationship?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       connect_requests: {
         Row: {
           admin_id: string
@@ -779,6 +951,31 @@ export type Database = {
           flag: string
           last_active: string
           user_id: string
+        }[]
+      }
+      admin_care_bridge_events: {
+        Args: { limit_n?: number }
+        Returns: {
+          confirmed_safe: boolean
+          created_at: string
+          event_id: string
+          event_name: string
+          follow_up_status: string
+          human_support_requested: boolean
+          masked_user: string
+          risk_band: string
+          support_level: number
+        }[]
+      }
+      admin_care_bridge_summary: {
+        Args: never
+        Returns: {
+          confirmed_safe_24h: number
+          events_24h: number
+          false_alarms_24h: number
+          follow_ups_pending: number
+          safety_checks_24h: number
+          urgent_requests_24h: number
         }[]
       }
       admin_demographics: {
