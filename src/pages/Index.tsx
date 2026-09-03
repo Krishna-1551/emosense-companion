@@ -13,6 +13,7 @@ import { CrisisResourceCard } from "@/components/CrisisResourceCard";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { VoiceToggle } from "@/components/VoiceToggle";
+import { CareBridge, CareBridgeSettings } from "@/components/care/CareBridge";
 import { useSpeech } from "@/lib/speech";
 
 
