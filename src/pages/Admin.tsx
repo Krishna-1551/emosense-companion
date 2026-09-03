@@ -307,6 +307,9 @@ const Admin = () => {
       {/* Psychological Intelligence & Case Training Engine */}
       <PsychIntelligencePanel />
 
+      {/* Care Bridge safety-workflow audit feed (masked, minimal fields) */}
+      <CareBridgeAdminPanel />
+
       {/* AI Improvement Suggestions panel */}
       <AdminSuggestionsPanel />
 
