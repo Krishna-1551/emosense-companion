@@ -13,6 +13,7 @@ import { CrisisResourceCard } from "@/components/CrisisResourceCard";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { VoiceToggle } from "@/components/VoiceToggle";
+import { CareBridge, CareBridgeSettings } from "@/components/care/CareBridge";
 import { useSpeech } from "@/lib/speech";
 
 
@@ -449,6 +450,7 @@ const Index = () => {
       <div className="flex flex-wrap gap-2">
         <TrustedContactDialog onSaved={refreshContact} />
         <PanicButton trustedContact={contact} />
+        <CareBridgeSettings userId={user.id} />
       </div>
 
       <ShareAppButton className="w-full justify-start" />

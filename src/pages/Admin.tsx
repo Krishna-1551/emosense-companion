@@ -18,6 +18,7 @@ import { AdminMoodTimeline } from "@/components/AdminMoodTimeline";
 import { AdminSuggestionsPanel } from "@/components/AdminSuggestionsPanel";
 import { EvolutionEngine } from "@/components/EvolutionEngine";
 import { PsychIntelligencePanel } from "@/components/PsychIntelligencePanel";
+import { CareBridgeAdminPanel } from "@/components/care/CareBridgeAdminPanel";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line, Legend, CartesianGrid, ReferenceDot,
 } from "recharts";
@@ -306,6 +307,9 @@ const Admin = () => {
 
       {/* Psychological Intelligence & Case Training Engine */}
       <PsychIntelligencePanel />
+
+      {/* Care Bridge safety-workflow audit feed (masked, minimal fields) */}
+      <CareBridgeAdminPanel />
 
       {/* AI Improvement Suggestions panel */}
       <AdminSuggestionsPanel />
