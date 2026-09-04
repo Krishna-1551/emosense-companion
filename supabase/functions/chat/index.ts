@@ -419,6 +419,82 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
       ? `BANNED in this reply (used recently — do NOT reuse, rephrase with different wording):\n${bannedForThisTurn.join("\n")}`
       : "BANNED in this reply: (none yet)";
 
+    /* ------------------------------------------------------------------ *
+     * CONVERSATION PROGRESS ENGINE
+     * Stops long sessions from looping in empathy/reflection forever and
+     * forces the reply to move to concrete, usable solutions.
+     * ------------------------------------------------------------------ */
+    const assistantTexts = (lastAssistant || []).map((r: any) => String(r.content || ""));
+    const tokenSet = (s: string) =>
+      new Set(norm(s).split(" ").filter((w) => w.length > 3));
+    const overlap = (a: string, b: string) => {
+      const A = tokenSet(a), B = tokenSet(b);
+      if (!A.size || !B.size) return 0;
+      let shared = 0;
+      for (const w of A) if (B.has(w)) shared++;
+      return shared / Math.min(A.size, B.size);
+    };
+    // Highest pairwise similarity among the last 3 assistant replies
+    let selfSimilarity = 0;
+    for (let i = 0; i < Math.min(3, assistantTexts.length); i++)
+      for (let j = i + 1; j < Math.min(3, assistantTexts.length); j++)
+        selfSimilarity = Math.max(selfSimilarity, overlap(assistantTexts[i], assistantTexts[j]));
+
+    const hasConcreteSteps = (s: string) =>
+      /(^|\n)\s*(\d[\).:]|[-•*])\s+\S/.test(s) || /\b(\d+)\s*(min|minute|minutes|मिनट)\b/i.test(s);
+    const recentGaveSteps = assistantTexts.slice(0, 3).some(hasConcreteSteps);
+
+    const userTurns = ((history as any[]) || []).filter((m: any) => m.role === "user").length + 1;
+    const trimmedMsg = (message || "").trim();
+    const shortAck =
+      trimmedMsg.length <= 12 &&
+      /^(h+m+n*|hn+|ok+(ay)?|k|haa?n+|ha|yes|yeah|ac+ha+|thee?k|fine|hmm+\W*|[\p{Emoji}\s\W]*)$/iu.test(trimmedMsg);
+    const stallComplaint =
+      /(repetitiv|repeat|same (baat|thing|answer)|wahi baat|ghuma|in circles|looping|you already said|bar[- ]?bar|baar[- ]?baar|kuch naya|nothing new|no solution|solution nahi|help nahi|bekar|useless)/i.test(
+        trimmedMsg,
+      );
+    const askedQuestionLastTurns = assistantTexts.slice(0, 3).filter((t) => /\?/.test(t)).length;
+
+    const stallSignals: string[] = [];
+    if (stallComplaint) stallSignals.push("user says replies are repetitive/unhelpful");
+    if (shortAck && userTurns >= 3) stallSignals.push("user is answering in one-word acknowledgements (disengaging)");
+    if (selfSimilarity >= 0.45) stallSignals.push(`recent replies are ${Math.round(selfSimilarity * 100)}% similar to each other`);
+    if (userTurns >= 6 && !recentGaveSteps) stallSignals.push("6+ turns with no concrete step offered yet");
+    if (askedQuestionLastTurns >= 3) stallSignals.push("last 3 replies were all questions");
+
+    const forceSolution = stallSignals.length > 0 || solutionMode;
+    const stage = forceSolution ? "SOLVE" : userTurns <= 2 ? "EXPLORE" : userTurns <= 4 ? "INSIGHT" : "PLAN";
+
+    const stageRules: Record<string, string> = {
+      EXPLORE:
+        "STAGE = EXPLORE (early turns): brief validation + ONE focused question to understand the situation. Do not dump advice yet.",
+      INSIGHT:
+        "STAGE = INSIGHT: validation must be ONE short line only. Then give a real observation about what is actually driving this, plus one small concrete step. At most one question.",
+      PLAN:
+        "STAGE = PLAN (this session has gone on a while): the user has already been heard. Skip re-validating. Give a short, specific plan: 2–4 concrete steps tied to THEIR situation, sized for today. Maximum one question, and only if it unblocks the plan.",
+      SOLVE: `STAGE = SOLVE — MANDATORY THIS TURN. Reason(s): ${stallSignals.length ? stallSignals.join("; ") : "user explicitly asked for practical help"}.
+HARD RULES FOR THIS REPLY:
+- Do NOT restate, paraphrase, or re-describe how they feel or what happened. They already know. One short line of acknowledgement MAXIMUM (skip it entirely if they complained about repetition).
+- Do NOT ask any exploratory question. ZERO question marks unless a single question is strictly needed to choose between two concrete options.
+- Give 2–4 SPECIFIC, actionable steps as a short numbered/bulleted list, tailored to their exact situation (result/selection setback → what to do in the next 24 hours, what to check about re-attempt/alternatives, who to talk to, one thing to do tonight). Each step must be doable and time-bound ("aaj raat 10 min", "kal subah ek list").
+- Include one thing NOT to do right now (e.g. don't make a big decision tonight).
+- If the user complained that you repeat yourself: open by owning it in one plain line (EN: "Fair point — let me be direct." / Hinglish: "Sahi kaha, main ghuma raha tha. Seedha point pe aata hoon.") and then go straight to steps.
+- No motivational filler, no "sab theek ho jayega", no "aap strong hain".
+- Safety rules for high-risk still override everything here.`,
+    };
+
+    const progressBlock = `CONVERSATION PROGRESS ENGINE:
+- user_turns_in_this_conversation=${userTurns}
+- reply_self_similarity=${selfSimilarity.toFixed(2)} (0=fresh, 1=identical)
+- concrete_steps_given_recently=${recentGaveSteps ? "yes" : "NO"}
+- questions_in_last_3_replies=${askedQuestionLastTurns}
+- stall_signals=${stallSignals.length ? stallSignals.join(" | ") : "none"}
+
+${stageRules[stage]}
+
+NEVER-LOOP RULE: each reply must add something the previous replies did NOT contain — a new angle, a new insight, or a new concrete step. Reflecting the same feeling back a second time is a failure.`;
+
+
     // User profile for personalization
     const { data: profile } = await supabase
       .from("profiles")
@@ -651,6 +727,8 @@ ${questionLimitBlock}
 
 ${solutionModeBlock}
 
+${progressBlock}
+
 ${psychBlock}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -709,8 +787,19 @@ ${psychBlock}`;
       for (const p of usedReassurances) {
         if (r.includes(p)) issues.push(`phrase "${p}" was used in a recent reply`);
       }
+      // Whole-reply similarity against recent replies (catches rephrased loops)
+      const sim = assistantTexts.slice(0, 3).reduce((m, t) => Math.max(m, overlap(reply, t)), 0);
+      if (sim >= 0.5) issues.push(`the reply is ${Math.round(sim * 100)}% the same content as a recent reply`);
+      // Stage contract: a SOLVE/PLAN turn must actually deliver steps
+      if ((stage === "SOLVE" || stage === "PLAN") && !hasConcreteSteps(reply)) {
+        issues.push("no concrete, actionable steps were given even though this turn required them");
+      }
+      if (stage === "SOLVE" && (reply.match(/\?/g) || []).length > 1) {
+        issues.push("more than one question in a solution turn");
+      }
       return issues;
     };
+
 
     let aiResp = await callAI();
     if (!aiResp.ok) {
