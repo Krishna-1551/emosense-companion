@@ -787,8 +787,19 @@ ${psychBlock}`;
       for (const p of usedReassurances) {
         if (r.includes(p)) issues.push(`phrase "${p}" was used in a recent reply`);
       }
+      // Whole-reply similarity against recent replies (catches rephrased loops)
+      const sim = assistantTexts.slice(0, 3).reduce((m, t) => Math.max(m, overlap(reply, t)), 0);
+      if (sim >= 0.5) issues.push(`the reply is ${Math.round(sim * 100)}% the same content as a recent reply`);
+      // Stage contract: a SOLVE/PLAN turn must actually deliver steps
+      if ((stage === "SOLVE" || stage === "PLAN") && !hasConcreteSteps(reply)) {
+        issues.push("no concrete, actionable steps were given even though this turn required them");
+      }
+      if (stage === "SOLVE" && (reply.match(/\?/g) || []).length > 1) {
+        issues.push("more than one question in a solution turn");
+      }
       return issues;
     };
+
 
     let aiResp = await callAI();
     if (!aiResp.ok) {
