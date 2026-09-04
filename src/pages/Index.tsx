@@ -559,6 +559,17 @@ const Index = () => {
                 </div>
               )}
 
+              {/* EmoSense Care Bridge — everyday support → safety check → urgent human support */}
+              <div className="max-w-2xl mx-auto">
+                <CareBridge
+                  userId={user.id}
+                  conversationId={activeConversationId}
+                  messages={messages.map(m => ({ role: m.role, content: m.content, emotion: m.emotion, risk_level: m.risk_level }))}
+                  onStopVoice={voice.stop}
+                  onContinueTalking={() => setLastActivity(new Date())}
+                />
+              </div>
+
               <div className="max-w-2xl mx-auto flex flex-wrap items-center justify-center gap-2">
                 <PrivacyBadge />
                 <VoiceToggle
