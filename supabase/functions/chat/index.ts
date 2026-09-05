@@ -835,7 +835,7 @@ ${psychBlock}`;
       if (!retryArgs?.reply) break;
       const retryIssues = detectRepetition(retryArgs.reply);
       const stepsFixed = needsSteps && !hasConcreteSteps(args.reply) && hasConcreteSteps(retryArgs.reply);
-      if (retryIssues.length < issues.length || stepsFixed) {
+      if (retryIssues.length <= issues.length || stepsFixed) {
         args = retryArgs;
         issues = retryIssues;
       } else break;
