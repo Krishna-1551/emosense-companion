@@ -458,12 +458,12 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
     const stallSignals: string[] = [];
     if (stallComplaint) stallSignals.push("user says replies are repetitive/unhelpful");
     if (shortAck && userTurns >= 3) stallSignals.push("user is answering in one-word acknowledgements (disengaging)");
-    if (selfSimilarity >= 0.45) stallSignals.push(`recent replies are ${Math.round(selfSimilarity * 100)}% similar to each other`);
-    if (userTurns >= 6 && !recentGaveSteps) stallSignals.push("6+ turns with no concrete step offered yet");
-    if (askedQuestionLastTurns >= 3) stallSignals.push("last 3 replies were all questions");
+    if (selfSimilarity >= 0.32) stallSignals.push(`recent replies are ${Math.round(selfSimilarity * 100)}% similar to each other`);
+    if (userTurns >= 4 && !recentGaveSteps) stallSignals.push("4+ turns with no concrete step offered yet");
+    if (askedQuestionLastTurns >= 2) stallSignals.push("the last replies were mostly questions");
 
     const forceSolution = stallSignals.length > 0 || solutionMode;
-    const stage = forceSolution ? "SOLVE" : userTurns <= 2 ? "EXPLORE" : userTurns <= 4 ? "INSIGHT" : "PLAN";
+    const stage = forceSolution ? "SOLVE" : userTurns <= 2 ? "EXPLORE" : userTurns <= 3 ? "INSIGHT" : "PLAN";
 
     const stageRules: Record<string, string> = {
       EXPLORE:
@@ -789,7 +789,7 @@ ${psychBlock}`;
       }
       // Whole-reply similarity against recent replies (catches rephrased loops)
       const sim = assistantTexts.slice(0, 3).reduce((m, t) => Math.max(m, overlap(reply, t)), 0);
-      if (sim >= 0.5) issues.push(`the reply is ${Math.round(sim * 100)}% the same content as a recent reply`);
+      if (sim >= 0.38) issues.push(`the reply is ${Math.round(sim * 100)}% the same content as a recent reply`);
       // Stage contract: a SOLVE/PLAN turn must actually deliver steps
       if ((stage === "SOLVE" || stage === "PLAN") && !hasConcreteSteps(reply)) {
         issues.push("no concrete, actionable steps were given even though this turn required them");
@@ -835,7 +835,7 @@ ${psychBlock}`;
       if (!retryArgs?.reply) break;
       const retryIssues = detectRepetition(retryArgs.reply);
       const stepsFixed = needsSteps && !hasConcreteSteps(args.reply) && hasConcreteSteps(retryArgs.reply);
-      if (retryIssues.length < issues.length || stepsFixed) {
+      if (retryIssues.length <= issues.length || stepsFixed) {
         args = retryArgs;
         issues = retryIssues;
       } else break;

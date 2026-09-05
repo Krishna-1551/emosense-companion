@@ -69,6 +69,17 @@ const CareBridgeInner = ({ userId, conversationId, messages, onStopVoice, onCont
   /** Card currently displayed. Escalation is sticky until the user resolves it. */
   const [shown, setShown] = useState<SupportLevel>(0);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+
+  /* A card should never reappear turn after turn. Per conversation we remember
+   * the highest level already surfaced; the same (or a lower) level stays quiet
+   * unless the situation genuinely escalates. */
+  const seenKey = `emosense-care-seen:${conversationId ?? "new"}`;
+  const readSeen = (): number => {
+    try { return Number(sessionStorage.getItem(seenKey) || 0); } catch { return 0; }
+  };
+  const markSeen = (lvl: number) => {
+    try { if (lvl > readSeen()) sessionStorage.setItem(seenKey, String(lvl)); } catch { /* ignore */ }
+  };
   const [safetyAnswer, setSafetyAnswer] = useState<string | null>(null);
   const [dueFollowUp, setDueFollowUp] = useState<FollowUpRow | null>(null);
   const [followUpAnswered, setFollowUpAnswered] = useState(false);
@@ -88,6 +99,10 @@ const CareBridgeInner = ({ userId, conversationId, messages, onStopVoice, onCont
       anchorRef.current = anchor;
       setSafetyAnswer(null);
     }
+
+    // Already offered this (or a stronger) card in this conversation → stay quiet.
+    if (level <= readSeen()) { setShown((prev) => (prev === 3 ? 3 : 0)); return; }
+    markSeen(level);
 
     // Never de-escalate an active urgent card automatically.
     setShown((prev) => (prev === 3 ? 3 : level));
