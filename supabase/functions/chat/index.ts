@@ -458,12 +458,12 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
     const stallSignals: string[] = [];
     if (stallComplaint) stallSignals.push("user says replies are repetitive/unhelpful");
     if (shortAck && userTurns >= 3) stallSignals.push("user is answering in one-word acknowledgements (disengaging)");
-    if (selfSimilarity >= 0.45) stallSignals.push(`recent replies are ${Math.round(selfSimilarity * 100)}% similar to each other`);
-    if (userTurns >= 6 && !recentGaveSteps) stallSignals.push("6+ turns with no concrete step offered yet");
-    if (askedQuestionLastTurns >= 3) stallSignals.push("last 3 replies were all questions");
+    if (selfSimilarity >= 0.32) stallSignals.push(`recent replies are ${Math.round(selfSimilarity * 100)}% similar to each other`);
+    if (userTurns >= 4 && !recentGaveSteps) stallSignals.push("4+ turns with no concrete step offered yet");
+    if (askedQuestionLastTurns >= 2) stallSignals.push("the last replies were mostly questions");
 
     const forceSolution = stallSignals.length > 0 || solutionMode;
-    const stage = forceSolution ? "SOLVE" : userTurns <= 2 ? "EXPLORE" : userTurns <= 4 ? "INSIGHT" : "PLAN";
+    const stage = forceSolution ? "SOLVE" : userTurns <= 2 ? "EXPLORE" : userTurns <= 3 ? "INSIGHT" : "PLAN";
 
     const stageRules: Record<string, string> = {
       EXPLORE:
