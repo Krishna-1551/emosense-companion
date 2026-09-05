@@ -817,22 +817,30 @@ ${psychBlock}`;
     let args = toolCall ? JSON.parse(toolCall.function.arguments) : null;
     if (!args) throw new Error("No structured response");
 
-    // Server-side repetition guard: retry once with stricter instruction if repeated
+    // Server-side guard: retry with a stricter instruction if the reply repeats
+    // recent content or fails the stage contract (no concrete steps when required).
     let issues = detectRepetition(args.reply);
-    if (issues.length > 0) {
-      console.log("Repetition detected, retrying:", issues);
-      const strict = `STRICT REWRITE: Your previous draft repeated recent content (${issues.join("; ")}). Rewrite the reply with a COMPLETELY DIFFERENT opening sentence and DIFFERENT reassurance wording. Do not use any of the BANNED openers/phrases above. Keep the same warmth, tone, and language style.`;
+    const needsSteps = stage === "SOLVE" || stage === "PLAN";
+    for (let attempt = 0; attempt < 2 && issues.length > 0; attempt++) {
+      console.log("Reply guard triggered, retrying:", issues);
+      const stepDemand = needsSteps && !hasConcreteSteps(args.reply)
+        ? `\nTHIS IS MANDATORY: the reply MUST contain a numbered list of 2–4 concrete actions the user can do today, each specific and time-bound. Do NOT reflect their feelings again. Do NOT ask an exploratory question.`
+        : "";
+      const strict = `STRICT REWRITE (attempt ${attempt + 1}): Your previous draft failed these checks: ${issues.join("; ")}. Rewrite with a COMPLETELY DIFFERENT opening sentence, different wording, and new content the earlier replies did not have. Keep the user's language style.${stepDemand}`;
       const retry = await callAI(strict);
-      if (retry.ok) {
-        const retryData = await retry.json();
-        const retryCall = retryData.choices?.[0]?.message?.tool_calls?.[0];
-        const retryArgs = retryCall ? JSON.parse(retryCall.function.arguments) : null;
-        if (retryArgs?.reply) {
-          const retryIssues = detectRepetition(retryArgs.reply);
-          if (retryIssues.length < issues.length) args = retryArgs;
-        }
-      }
+      if (!retry.ok) break;
+      const retryData = await retry.json();
+      const retryCall = retryData.choices?.[0]?.message?.tool_calls?.[0];
+      const retryArgs = retryCall ? JSON.parse(retryCall.function.arguments) : null;
+      if (!retryArgs?.reply) break;
+      const retryIssues = detectRepetition(retryArgs.reply);
+      const stepsFixed = needsSteps && !hasConcreteSteps(args.reply) && hasConcreteSteps(retryArgs.reply);
+      if (retryIssues.length < issues.length || stepsFixed) {
+        args = retryArgs;
+        issues = retryIssues;
+      } else break;
     }
+
 
 
     // --- Safety net: keyword + pattern-based high-risk override ---
