@@ -789,7 +789,7 @@ ${psychBlock}`;
       }
       // Whole-reply similarity against recent replies (catches rephrased loops)
       const sim = assistantTexts.slice(0, 3).reduce((m, t) => Math.max(m, overlap(reply, t)), 0);
-      if (sim >= 0.5) issues.push(`the reply is ${Math.round(sim * 100)}% the same content as a recent reply`);
+      if (sim >= 0.38) issues.push(`the reply is ${Math.round(sim * 100)}% the same content as a recent reply`);
       // Stage contract: a SOLVE/PLAN turn must actually deliver steps
       if ((stage === "SOLVE" || stage === "PLAN") && !hasConcreteSteps(reply)) {
         issues.push("no concrete, actionable steps were given even though this turn required them");
