@@ -100,6 +100,10 @@ const CareBridgeInner = ({ userId, conversationId, messages, onStopVoice, onCont
       setSafetyAnswer(null);
     }
 
+    // Already offered this (or a stronger) card in this conversation → stay quiet.
+    if (level <= readSeen()) { setShown((prev) => (prev === 3 ? 3 : 0)); return; }
+    markSeen(level);
+
     // Never de-escalate an active urgent card automatically.
     setShown((prev) => (prev === 3 ? 3 : level));
 
