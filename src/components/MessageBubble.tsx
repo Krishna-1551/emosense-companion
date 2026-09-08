@@ -66,7 +66,7 @@ const renderInline = (text: string) => {
   });
 };
 
-export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak }: Props) => {
+export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak, memoryId, feedback }: Props) => {
   const isUser = role === "user";
   const { text, attachments } = parseAttachments(content);
 
