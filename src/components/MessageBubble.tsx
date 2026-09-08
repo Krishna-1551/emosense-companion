@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { AttachmentChip, AttachmentAnalysis } from "./AttachmentChip";
 import { Sparkles, Volume2 } from "lucide-react";
+import { ResponseFeedback } from "./ResponseFeedback";
 
 const emotionEmoji: Record<string, string> = {
   joy: "😊", sadness: "💙", anxiety: "🫧", stress: "🌊",
@@ -14,6 +15,8 @@ type Props = {
   risk?: string | null;
   time?: string;
   onSpeak?: (text: string) => void;
+  memoryId?: string | null;
+  feedback?: "up" | "down" | null;
 };
 
 
