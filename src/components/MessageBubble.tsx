@@ -115,6 +115,9 @@ export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak, mem
           {time && <span className="ml-auto tabular-nums">{time}</span>}
         </div>
 
+        {!isUser && memoryId && <ResponseFeedback memoryId={memoryId} initial={feedback ?? null} />}
+
+
       </div>
     </div>
   );
