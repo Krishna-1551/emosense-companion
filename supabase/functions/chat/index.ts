@@ -1078,7 +1078,54 @@ ${psychBlock}`;
       console.error("learning profile update failed", learnErr);
     }
 
-    return new Response(JSON.stringify({ ...args, conversation_id: conversationId }), {
+    // --- Adaptive response memory: store a compact record of THIS reply ---
+    let memoryId: string | null = null;
+    try {
+      const replyText = String(args.reply || "");
+      const opening = replyText.replace(/\s+/g, " ").trim().split(" ").slice(0, 12).join(" ");
+      const sentences = replyText.split(/(?<=[.!?…])\s+/).map(s => s.trim()).filter(Boolean);
+      const phrases = sentences.slice(0, 3).map(s => s.split(" ").slice(0, 6).join(" "));
+      for (const p of REASSURANCE_PHRASES) {
+        if (norm(replyText).includes(p) && phrases.length < 6) phrases.push(p);
+      }
+      const approach = [
+        args.coping_technique && args.coping_technique !== "none" ? args.coping_technique : null,
+        args.follow_up_intent && args.follow_up_intent !== "none" ? `intent:${args.follow_up_intent}` : null,
+        args.micro_action ? `action:${String(args.micro_action).slice(0, 80)}` : null,
+        `stage:${stage}`,
+      ].filter(Boolean).join(" | ");
+
+      const { data: memIns } = await supabase.from("response_memory").insert({
+        user_id: user.id,
+        conversation_id: conversationId,
+        message_id: assistantMsgId,
+        situation_summary: (message || "(attachment only)").replace(/\s+/g, " ").slice(0, 180),
+        response_opening: opening,
+        approach,
+        key_phrases: phrases.slice(0, 6),
+        language: userLang,
+        style: suggestedStyle,
+        reply_length: replyText.length,
+      }).select("id").single();
+      memoryId = memIns?.id ?? null;
+
+      // Keep only the latest 20 records per user
+      const { data: stale } = await supabase.from("response_memory")
+        .select("id").eq("user_id", user.id)
+        .order("created_at", { ascending: false }).range(20, 60);
+      if (stale?.length) {
+        await supabase.from("response_memory").delete().in("id", stale.map((r: any) => r.id));
+      }
+    } catch (memErr) {
+      console.error("response_memory write failed", memErr);
+    }
+
+    return new Response(JSON.stringify({
+      ...args,
+      conversation_id: conversationId,
+      assistant_message_id: assistantMsgId,
+      memory_id: memoryId,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
