@@ -818,6 +818,8 @@ ${solutionModeBlock}
 
 ${progressBlock}
 
+${memoryBlock}
+
 ${psychBlock}`;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
