@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { AttachmentChip, AttachmentAnalysis } from "./AttachmentChip";
 import { Sparkles, Volume2 } from "lucide-react";
+import { ResponseFeedback } from "./ResponseFeedback";
 
 const emotionEmoji: Record<string, string> = {
   joy: "😊", sadness: "💙", anxiety: "🫧", stress: "🌊",
@@ -14,6 +15,8 @@ type Props = {
   risk?: string | null;
   time?: string;
   onSpeak?: (text: string) => void;
+  memoryId?: string | null;
+  feedback?: "up" | "down" | null;
 };
 
 
@@ -63,7 +66,7 @@ const renderInline = (text: string) => {
   });
 };
 
-export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak }: Props) => {
+export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak, memoryId, feedback }: Props) => {
   const isUser = role === "user";
   const { text, attachments } = parseAttachments(content);
 
@@ -111,6 +114,9 @@ export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak }: P
           )}
           {time && <span className="ml-auto tabular-nums">{time}</span>}
         </div>
+
+        {!isUser && memoryId && <ResponseFeedback memoryId={memoryId} initial={feedback ?? null} />}
+
 
       </div>
     </div>

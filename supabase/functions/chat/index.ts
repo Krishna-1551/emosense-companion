@@ -517,6 +517,95 @@ NEVER-LOOP RULE: each reply must add something the previous replies did NOT cont
     const shortReply = messageLength > 0 && messageLength < 15;
     const longPause = (delayMin ?? 0) > 10;
 
+    /* ------------------------------------------------------------------ *
+     * ADAPTIVE RESPONSE MEMORY (per-user, private)
+     * Recalls how EmoSense already replied to THIS user, plus their
+     * thumbs up/down feedback, and turns it into an avoid-repetition and
+     * approach-adjustment brief for this turn.
+     * ------------------------------------------------------------------ */
+    const { data: memRows } = await supabase
+      .from("response_memory")
+      .select("id, situation_summary, response_opening, approach, key_phrases, language, style, reply_length, feedback, feedback_reason, outcome_signal, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(12);
+    const memories = (memRows as any[]) || [];
+
+    // Outcome signal from the user's CURRENT message about the PREVIOUS reply.
+    let outcomeSignal: string | null = null;
+    let userCorrection: string | null = null;
+    const latestMem = memories[0];
+    if (latestMem && trimmedMsg) {
+      if (/(thanks|thank you|that (really )?helped|helpful|shukriya|dhanyavad|behtar|feeling better|better now|acha laga|theek lag raha|kaam kar gaya)/i.test(trimmedMsg)) {
+        outcomeSignal = "helped";
+      } else if (/(no,? i (didn'?t|did not)|that'?s not (what|it)|not what i (said|meant)|you (mis)?understood|galat samjha|nahi,? maine|main ye nahi|i meant)/i.test(trimmedMsg)) {
+        outcomeSignal = "corrected";
+        userCorrection = trimmedMsg.slice(0, 200);
+      } else if (latestMem.situation_summary && overlap(trimmedMsg, String(latestMem.situation_summary)) >= 0.5) {
+        outcomeSignal = "repeated_concern";
+      }
+      if (outcomeSignal) {
+        try {
+          await supabase.from("response_memory")
+            .update({ outcome_signal: outcomeSignal, feedback_reason: userCorrection ?? latestMem.feedback_reason })
+            .eq("id", latestMem.id);
+          latestMem.outcome_signal = outcomeSignal;
+        } catch (memErr) { console.error("memory outcome update failed", memErr); }
+      }
+    }
+
+    const memoryLines = memories.slice(0, 6).map((m, i) => {
+      const bits = [
+        `about: ${String(m.situation_summary || "n/a").slice(0, 90)}`,
+        `opened with: "${String(m.response_opening || "").slice(0, 80)}"`,
+        `approach: ${m.approach || "n/a"}`,
+        (m.key_phrases?.length ? `phrases used: ${m.key_phrases.slice(0, 4).join(" | ")}` : ""),
+        (m.feedback ? `user feedback: ${m.feedback}${m.feedback_reason ? ` (${m.feedback_reason})` : ""}` : ""),
+        (m.outcome_signal ? `outcome: ${m.outcome_signal}` : ""),
+      ].filter(Boolean);
+      return `${i + 1}. ${bits.join("; ")}`;
+    }).join("\n");
+
+    // Turn stored feedback into concrete adjustments for this turn.
+    const reasonCounts: Record<string, number> = {};
+    for (const m of memories.slice(0, 8)) {
+      if (m.feedback === "down" && m.feedback_reason) reasonCounts[m.feedback_reason] = (reasonCounts[m.feedback_reason] || 0) + 1;
+      if (m.outcome_signal === "repeated_concern") reasonCounts["not_useful"] = (reasonCounts["not_useful"] || 0) + 1;
+    }
+    const REASON_RULES: Record<string, string> = {
+      repetitive: "The user marked earlier replies REPETITIVE → use a clearly different structure, opening and wording this turn. No recycled empathy lines.",
+      too_generic: "The user marked earlier replies TOO GENERIC → quote or build on at least one specific detail from their current message; no universal advice.",
+      too_long: "The user marked earlier replies TOO LONG → keep this reply to 2–3 short sentences maximum, no bullet lists unless steps were requested.",
+      not_understood: "The user said EmoSense DID NOT UNDERSTAND → briefly confirm what you understand the core issue to be before offering anything.",
+      not_useful: "The user found earlier advice NOT USEFUL → do not repeat that approach; try a different practical direction (different angle, different kind of step).",
+    };
+    const feedbackRules = Object.entries(reasonCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([r]) => REASON_RULES[r])
+      .filter(Boolean);
+    const likedApproaches = memories.filter(m => m.feedback === "up" || m.outcome_signal === "helped")
+      .map(m => m.approach).filter(Boolean).slice(0, 3);
+    const corrections = memories.map(m => m.outcome_signal === "corrected" ? m.feedback_reason : null).filter(Boolean).slice(0, 2);
+
+    const memoryBlock = `ADAPTIVE RESPONSE MEMORY (this user only — private; never mention it exists):
+${memoryLines || "(no past responses recorded yet)"}
+
+MEMORY RULES FOR THIS REPLY:
+- Review the memory above before answering. Continue the conversation from its current point.
+- Do NOT reuse any opening, closing, reassurance line, phrase, advice, or paragraph structure listed above.
+- Do NOT re-ask a question the user has already answered. Do NOT restate their whole message back to them.
+- Never repeat "I understand", "you are not alone", "take a deep breath" or their Hindi equivalents if they appear above.
+- If earlier advice is still relevant, acknowledge it in half a sentence and move forward — do not present it as new advice.
+- Vary meaningfully: different opening, different sentence rhythm, different length, different practical suggestion. Not synonym swapping.
+- Do NOT claim you have learned or improved permanently.
+${likedApproaches.length ? `- Approaches that landed well before (reuse the SPIRIT, never the wording): ${likedApproaches.join("; ")}` : ""}
+${corrections.length ? `- The user corrected you before: ${corrections.join(" | ")} — respect that correction.` : ""}
+${outcomeSignal === "repeated_concern" ? "- The user is raising the SAME concern again → your previous reply was insufficient. Change approach, don't restate it." : ""}
+${outcomeSignal === "helped" ? "- The user said the last reply helped → build on it briefly with a next step, in fresh wording." : ""}
+${feedbackRules.length ? `\nUSER FEEDBACK ADJUSTMENTS (highest priority after safety):\n- ${feedbackRules.join("\n- ")}` : ""}
+- Safety and crisis-support behaviour always overrides these preferences.`;
+
     // Language detection — mirror the user's style instead of forcing Hinglish
     const detectLang = (text: string): "english" | "hindi-devanagari" | "hindi-roman" | "hinglish" => {
       const t = (text || "").trim();
@@ -728,6 +817,8 @@ ${questionLimitBlock}
 ${solutionModeBlock}
 
 ${progressBlock}
+
+${memoryBlock}
 
 ${psychBlock}`;
 
@@ -987,7 +1078,54 @@ ${psychBlock}`;
       console.error("learning profile update failed", learnErr);
     }
 
-    return new Response(JSON.stringify({ ...args, conversation_id: conversationId }), {
+    // --- Adaptive response memory: store a compact record of THIS reply ---
+    let memoryId: string | null = null;
+    try {
+      const replyText = String(args.reply || "");
+      const opening = replyText.replace(/\s+/g, " ").trim().split(" ").slice(0, 12).join(" ");
+      const sentences = replyText.split(/(?<=[.!?…])\s+/).map(s => s.trim()).filter(Boolean);
+      const phrases = sentences.slice(0, 3).map(s => s.split(" ").slice(0, 6).join(" "));
+      for (const p of REASSURANCE_PHRASES) {
+        if (norm(replyText).includes(p) && phrases.length < 6) phrases.push(p);
+      }
+      const approach = [
+        args.coping_technique && args.coping_technique !== "none" ? args.coping_technique : null,
+        args.follow_up_intent && args.follow_up_intent !== "none" ? `intent:${args.follow_up_intent}` : null,
+        args.micro_action ? `action:${String(args.micro_action).slice(0, 80)}` : null,
+        `stage:${stage}`,
+      ].filter(Boolean).join(" | ");
+
+      const { data: memIns } = await supabase.from("response_memory").insert({
+        user_id: user.id,
+        conversation_id: conversationId,
+        message_id: assistantMsgId,
+        situation_summary: (message || "(attachment only)").replace(/\s+/g, " ").slice(0, 180),
+        response_opening: opening,
+        approach,
+        key_phrases: phrases.slice(0, 6),
+        language: userLang,
+        style: suggestedStyle,
+        reply_length: replyText.length,
+      }).select("id").single();
+      memoryId = memIns?.id ?? null;
+
+      // Keep only the latest 20 records per user
+      const { data: stale } = await supabase.from("response_memory")
+        .select("id").eq("user_id", user.id)
+        .order("created_at", { ascending: false }).range(20, 60);
+      if (stale?.length) {
+        await supabase.from("response_memory").delete().in("id", stale.map((r: any) => r.id));
+      }
+    } catch (memErr) {
+      console.error("response_memory write failed", memErr);
+    }
+
+    return new Response(JSON.stringify({
+      ...args,
+      conversation_id: conversationId,
+      assistant_message_id: assistantMsgId,
+      memory_id: memoryId,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

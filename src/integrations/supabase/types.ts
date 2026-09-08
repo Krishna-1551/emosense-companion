@@ -831,6 +831,71 @@ export type Database = {
         }
         Relationships: []
       }
+      response_memory: {
+        Row: {
+          approach: string | null
+          conversation_id: string | null
+          created_at: string
+          feedback: string | null
+          feedback_reason: string | null
+          id: string
+          key_phrases: string[]
+          language: string | null
+          message_id: string | null
+          outcome_signal: string | null
+          reply_length: number | null
+          response_opening: string | null
+          situation_summary: string | null
+          style: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approach?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          feedback?: string | null
+          feedback_reason?: string | null
+          id?: string
+          key_phrases?: string[]
+          language?: string | null
+          message_id?: string | null
+          outcome_signal?: string | null
+          reply_length?: number | null
+          response_opening?: string | null
+          situation_summary?: string | null
+          style?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approach?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          feedback?: string | null
+          feedback_reason?: string | null
+          id?: string
+          key_phrases?: string[]
+          language?: string | null
+          message_id?: string | null
+          outcome_signal?: string | null
+          reply_length?: number | null
+          response_opening?: string | null
+          situation_summary?: string | null
+          style?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "response_memory_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_messages: {
         Row: {
           content: string
