@@ -5,6 +5,9 @@ import {
   recordAssessment, summariseTimeline,
   extractSignals, mergeSignalState, planNextProbe, foldHistorySignals, collectAskedQuestions,
 } from "../_shared/psych.ts";
+import { assessSafetyText, buildUrgentSafetyReply } from "../_shared/safety.ts";
+import { evaluateResponseQuality, evaluateSemanticNovelty } from "../_shared/response-quality.ts";
+import { planResponse, responsePlanBlock } from "../_shared/response-plan.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,7 +27,7 @@ HUMAN-FIRST VOICE (top priority — apply to every reply):
 
 SAFETY:
 - NEVER diagnose, prescribe, or claim to replace a therapist. No medical advice.
-- If the user expresses self-harm, suicidal thoughts, or imminent danger, classify as "high" risk and gently point them to emergency resources (988 in US, local emergency line) and the panic button in this app.
+- If the user expresses self-harm, suicidal thoughts, or imminent danger, classify as "high" risk. The server applies the final location-appropriate safety response; never invent a hotline number.
 - Be supportive, never judgmental.
 
 RESPONSE STRUCTURE (follow naturally, not mechanically — 2 to 5 short sentences total):
@@ -211,7 +214,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { message: rawMessage, history = [], conversation_id: incomingConvId, attachments = [] } = await req.json();
+    const { message: rawMessage, history = [], conversation_id: incomingConvId, attachments = [], memory_enabled = false } = await req.json();
     type AttachmentPayload = {
       kind: "image" | "audio" | "document";
       filename?: string | null;
@@ -251,6 +254,7 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
       message || (atts.length ? `[shared ${atts.map(a => a.kind).join(", ")} for emotional check-in — please respond to what you sense]` : ""),
       attachmentContext ? `\n\n--- ATTACHMENT ANALYSIS (already processed; use as emotional context) ---\n${attachmentContext}` : "",
     ].join("");
+    const inputSafetyTier = assessSafetyText(composedUserMessage);
 
     // Resolve / create the active conversation
     let conversationId: string | null = incomingConvId ?? null;
@@ -464,6 +468,12 @@ ${an.extractedText ? `- extracted_text="""${String(an.extractedText).slice(0, 15
 
     const forceSolution = stallSignals.length > 0 || solutionMode;
     const stage = forceSolution ? "SOLVE" : userTurns <= 2 ? "EXPLORE" : userTurns <= 3 ? "INSIGHT" : "PLAN";
+    const responsePlan = planResponse({
+      message,
+      stage,
+      safetyTier: inputSafetyTier,
+      recentQuestions: askedQuestionLastTurns,
+    });
 
     const stageRules: Record<string, string> = {
       EXPLORE:
@@ -523,12 +533,12 @@ NEVER-LOOP RULE: each reply must add something the previous replies did NOT cont
      * thumbs up/down feedback, and turns it into an avoid-repetition and
      * approach-adjustment brief for this turn.
      * ------------------------------------------------------------------ */
-    const { data: memRows } = await supabase
+    const { data: memRows } = memory_enabled ? await supabase
       .from("response_memory")
       .select("id, situation_summary, response_opening, approach, key_phrases, language, style, reply_length, feedback, feedback_reason, outcome_signal, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(12);
+      .limit(12) : { data: [] };
     const memories = (memRows as any[]) || [];
 
     // Outcome signal from the user's CURRENT message about the PREVIOUS reply.
@@ -818,6 +828,8 @@ ${solutionModeBlock}
 
 ${progressBlock}
 
+${responsePlanBlock(responsePlan)}
+
 ${memoryBlock}
 
 ${psychBlock}`;
@@ -888,6 +900,12 @@ ${psychBlock}`;
       if (stage === "SOLVE" && (reply.match(/\?/g) || []).length > 1) {
         issues.push("more than one question in a solution turn");
       }
+      issues.push(...evaluateResponseQuality({
+        reply,
+        userMessage: message,
+        stage: stage as "EXPLORE" | "INSIGHT" | "PLAN" | "SOLVE",
+      }));
+      issues.push(...evaluateSemanticNovelty(reply, assistantTexts));
       return issues;
     };
 
@@ -934,18 +952,21 @@ ${psychBlock}`;
 
 
 
-    // --- Safety net: keyword + pattern-based high-risk override ---
-    // The AI is the primary detector; this is a backstop in case it under-classifies.
-    const HIGH_RISK_PATTERNS = [
-      /\bsuicid\w*/i, /\bkill (myself|me)\b/i, /\bend (it|my life|everything)\b/i,
-      /\bdon'?t want to (live|be here|exist)\b/i, /\bno reason to (live|go on)\b/i,
-      /\bhurt myself\b/i, /\bself[- ]?harm\b/i, /\bcut myself\b/i,
-      /\bhopeless\b/i, /\bworthless\b/i, /\bcan'?t (go on|do this anymore|take it)\b/i,
-      /\bgive up\b/i, /\bnobody (cares|would miss)\b/i, /\boverdose\b/i,
-    ];
+    // --- Deterministic safety layer ---
+    // Explicit intent and general distress are deliberately separated. This
+    // prevents broad words such as "hopeless" from being treated as identical
+    // to stated self-harm intent while keeping a conservative concern signal.
     const combinedRiskText = [message, ...atts.map(a => a.analysis?.extractedText || "")].join("\n");
-    const keywordHighRisk = HIGH_RISK_PATTERNS.some(p => p.test(combinedRiskText));
-    if (keywordHighRisk) args.risk_level = "high";
+    const safetyTier = assessSafetyText(combinedRiskText);
+    if (safetyTier === "urgent") {
+      args.risk_level = "high";
+      args.reply = buildUrgentSafetyReply(message || combinedRiskText);
+      args.follow_up_intent = "stabilize";
+      args.coping_technique = "validation_only";
+      args.micro_action = "Ask a trusted person to stay nearby and call Tele-MANAS.";
+    } else if (safetyTier === "concern" && args.risk_level === "low") {
+      args.risk_level = "moderate";
+    }
 
     // Escalate from attachment riskScore
     const maxAttRisk = atts.reduce((m, a) => Math.max(m, a.analysis?.riskScore ?? 0), 0);
@@ -1015,7 +1036,7 @@ ${psychBlock}`;
     });
 
     // --- Reply analytics: log emotion, solution mode, question count, repetition score ---
-    try {
+    if (memory_enabled) try {
       const replyText = String(args.reply || "");
       const questionCount = (replyText.match(/\?/g) || []).length;
       const tokenize = (s: string) =>
@@ -1080,7 +1101,7 @@ ${psychBlock}`;
 
     // --- Adaptive response memory: store a compact record of THIS reply ---
     let memoryId: string | null = null;
-    try {
+    if (memory_enabled) try {
       const replyText = String(args.reply || "");
       const opening = replyText.replace(/\s+/g, " ").trim().split(" ").slice(0, 12).join(" ");
       const sentences = replyText.split(/(?<=[.!?…])\s+/).map(s => s.trim()).filter(Boolean);
