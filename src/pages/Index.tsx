@@ -101,16 +101,28 @@ const Index = () => {
     if (!user) return;
     if (!activeConversationId) { setMessages([WELCOME]); return; }
     setLoadingMessages(true);
-    supabase.from("messages")
-      .select("id, role, content, emotion, risk_level, created_at")
-      .eq("user_id", user.id)
-      .eq("conversation_id", activeConversationId)
-      .order("created_at", { ascending: true })
-      .limit(500)
-      .then(({ data }) => {
-        setMessages(data && data.length ? (data as Msg[]) : [WELCOME]);
-        setLoadingMessages(false);
-      });
+    (async () => {
+      const [{ data }, { data: mem }] = await Promise.all([
+        supabase.from("messages")
+          .select("id, role, content, emotion, risk_level, created_at")
+          .eq("user_id", user.id)
+          .eq("conversation_id", activeConversationId)
+          .order("created_at", { ascending: true })
+          .limit(500),
+        supabase.from("response_memory")
+          .select("id, message_id, feedback")
+          .eq("user_id", user.id)
+          .eq("conversation_id", activeConversationId),
+      ]);
+      const byMsg = new Map((mem ?? []).filter(r => r.message_id).map(r => [r.message_id as string, r]));
+      setMessages(data && data.length
+        ? (data as Msg[]).map(m => {
+            const rec = m.id ? byMsg.get(m.id) : undefined;
+            return rec ? { ...m, memory_id: rec.id, feedback: (rec.feedback as "up" | "down" | null) ?? null } : m;
+          })
+        : [WELCOME]);
+      setLoadingMessages(false);
+    })();
   }, [user, activeConversationId]);
 
 
