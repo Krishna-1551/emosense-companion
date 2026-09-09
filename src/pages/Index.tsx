@@ -31,6 +31,8 @@ type Msg = {
   emotion?: string | null;
   risk_level?: string | null;
   created_at?: string;
+  memory_id?: string | null;
+  feedback?: "up" | "down" | null;
 };
 
 const WELCOME: Msg = {
