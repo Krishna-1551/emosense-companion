@@ -13,6 +13,7 @@ import { CrisisResourceCard } from "@/components/CrisisResourceCard";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { ShareAppButton } from "@/components/ShareAppButton";
 import { VoiceToggle } from "@/components/VoiceToggle";
+import { MemoryPrivacyDialog } from "@/components/MemoryPrivacyDialog";
 import { CareBridge, CareBridgeSettings } from "@/components/care/CareBridge";
 import { useSpeech } from "@/lib/speech";
 
@@ -50,6 +51,11 @@ const Index = () => {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [memoryEnabled, setMemoryEnabled] = useState(() => localStorage.getItem("emosense_adaptive_memory") === "1");
+  const setMemoryPreference = (enabled: boolean) => {
+    localStorage.setItem("emosense_adaptive_memory", enabled ? "1" : "0");
+    setMemoryEnabled(enabled);
+  };
 
   const [contact, setContact] = useState<{ name?: string | null; email?: string | null; phone?: string | null } | null>(null);
   const [lastActivity, setLastActivity] = useState<Date>(new Date());
@@ -378,6 +384,7 @@ const Index = () => {
           attachments: ready.map(a => ({
             kind: a.kind, filename: a.filename, mime: a.mime, analysis: a.analysis,
           })),
+          memory_enabled: memoryEnabled,
         },
       });
       if (error) throw error;
@@ -468,6 +475,7 @@ const Index = () => {
       </div>
 
       <ShareAppButton className="w-full justify-start" />
+      <MemoryPrivacyDialog userId={user.id} enabled={memoryEnabled} onEnabledChange={setMemoryPreference} />
 
 
       {isAdmin && (

@@ -1,4 +1,6 @@
 // ============================================================================
+
+import { assessSafetyText } from "./safety.ts";
 // EmoSense — Psychological Intelligence Engine (shared module)
 // ----------------------------------------------------------------------------
 // Modular, reusable layer that sits between raw emotion detection and the AI
@@ -105,15 +107,11 @@ const HOPELESS_MARKERS = [
   /\bhopeless\b/i, /\bworthless\b/i, /\bno point\b/i, /\bpointless\b/i,
   /\bnothing will change\b/i, /\bburden\b/i, /\bkoi faayda nahi\b/i, /\bbekaar hoon\b/i,
 ];
-const CRISIS_MARKERS = [
-  /\bsuicid\w*/i, /\bkill (myself|me)\b/i, /\bend (it|my life|everything)\b/i,
-  /\bdon'?t want to (live|be here|exist)\b/i, /\bno reason to (live|go on)\b/i,
-  /\bhurt myself\b/i, /\bself[- ]?harm\b/i, /\bcut myself\b/i, /\boverdose\b/i,
-  /\bbetter off (dead|without me|gone)\b/i, /\bnobody would miss\b/i,
-  /\bmarna chahta\b/i, /\bjeena nahi chahta\b/i, /\bkhudko (maar|nuksan)\b/i,
-  /\b(beat|hits|hitting) me\b/i, /\bnot safe at home\b/i,
+const IMMEDIATE_DANGER_MARKERS = [
+  /\b(beat|hits|hitting) me\b/i,
+  /\bnot safe at home\b/i,
+  /\b(?:he|she|they|someone) (?:is going to|wants to|threatened to) (?:hurt|kill) me\b/i,
 ];
-
 export type ContextSignals = {
   duration_hint: boolean;
   functional_impact: boolean;
@@ -137,7 +135,7 @@ export function analyseContext(
     functional_impact: hit(FUNCTIONAL_MARKERS),
     somatic: hit(SOMATIC_MARKERS),
     hopelessness: hit(HOPELESS_MARKERS),
-    crisis: hit(CRISIS_MARKERS),
+    crisis: assessSafetyText(t) === "urgent" || hit(IMMEDIATE_DANGER_MARKERS),
     continuity: Array.from(continuity).slice(0, 6),
   };
 }
