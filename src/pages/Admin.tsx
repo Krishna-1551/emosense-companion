@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Shield,
@@ -30,6 +31,9 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
+  BrainCircuit,
+  BarChart3,
+  HeartHandshake,
 } from "lucide-react";
 import { generateTherapistReport } from "@/lib/therapistReport";
 import { toast } from "sonner";
@@ -736,14 +740,15 @@ const Admin = () => {
   }
 
   return (
-    <div className="min-h-screen p-4 lg:p-8 space-y-6">
+    <div className="min-h-screen p-4 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-4">
 
       {/* =========================================================
           HEADER
       ========================================================= */}
-      <header className="flex items-center justify-between flex-wrap gap-3">
+      <header className="flex items-center justify-between flex-wrap gap-3 border-b border-border/60 pb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center soft-shadow">
             <Shield className="w-5 h-5 text-primary-foreground" />
           </div>
 
@@ -826,7 +831,7 @@ const Admin = () => {
       {/* =========================================================
           STATS
       ========================================================= */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
         <Stat
           icon={
             <Users className="w-4 h-4" />
@@ -884,13 +889,24 @@ const Admin = () => {
       {/* =========================================================
           ADVANCED PANELS
       ========================================================= */}
-      <EvolutionEngine />
+      <AdminSection
+        icon={<BrainCircuit className="h-5 w-5" />}
+        title="Intelligence Systems"
+        description="Evolution and psychological response engines"
+        summary="2 engines"
+        defaultOpen
+      >
+        <EvolutionEngine />
+        <PsychIntelligencePanel />
+      </AdminSection>
 
-      <PsychIntelligencePanel />
-
-      <CareBridgeAdminPanel />
-
-      <AdminSuggestionsPanel />
+      <AdminSection
+        icon={<BarChart3 className="h-5 w-5" />}
+        title="Analytics & Insights"
+        description="Recommendations, patterns, and trend monitoring"
+        summary={`${emotions.length} emotion signals`}
+      >
+        <AdminSuggestionsPanel />
 
       {/* =========================================================
           AI INSIGHT
@@ -1170,9 +1186,20 @@ const Admin = () => {
         </Card>
       </div>
 
+      </AdminSection>
+
       {/* =========================================================
           HIGH PRIORITY CASES
       ========================================================= */}
+      <AdminSection
+        icon={<HeartHandshake className="h-5 w-5" />}
+        title="Safety & Support"
+        description="Care Bridge, high-priority cases, and consent-based support"
+        summary={`${visibleCases.length} open ${visibleCases.length === 1 ? "case" : "cases"}`}
+        defaultOpen={visibleCases.length > 0}
+        urgent={visibleCases.length > 0}
+      >
+      <CareBridgeAdminPanel />
       <Card className="p-4 border-destructive/30">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <AlertTriangle className="w-4 h-4 text-destructive" />
@@ -1526,9 +1553,17 @@ const Admin = () => {
         )}
       </Card>
 
+      </AdminSection>
+
       {/* =========================================================
           BEHAVIOR FLAGS
       ========================================================= */}
+      <AdminSection
+        icon={<Users className="h-5 w-5" />}
+        title="People"
+        description="Behavior signals, users, reports, and demographics"
+        summary={`${users.length} users`}
+      >
       <Card className="p-4">
         <div className="flex items-center gap-2 mb-3">
           <Activity className="w-4 h-4" />
@@ -2221,9 +2256,56 @@ const Admin = () => {
         />
       )}
 
+      </AdminSection>
+
+      </div>
     </div>
   );
 };
+
+const AdminSection = ({
+  icon,
+  title,
+  description,
+  summary,
+  defaultOpen = false,
+  urgent = false,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  summary: string;
+  defaultOpen?: boolean;
+  urgent?: boolean;
+  children: React.ReactNode;
+}) => (
+  <Collapsible defaultOpen={defaultOpen} className="group/admin-section">
+    <Card className={`overflow-hidden rounded-lg transition-colors ${urgent ? "border-destructive/40" : "border-border/70"}`}>
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          className="h-auto w-full justify-start rounded-none px-4 py-4 text-left hover:bg-secondary/40 focus-visible:ring-inset"
+        >
+          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${urgent ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-accent/20 bg-accent/10 text-accent"}`}>
+            {icon}
+          </span>
+          <span className="ml-3 min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-foreground">{title}</span>
+            <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{description}</span>
+          </span>
+          <Badge variant={urgent ? "destructive" : "secondary"} className="ml-3 hidden shrink-0 text-[10px] sm:inline-flex">
+            {summary}
+          </Badge>
+          <ChevronDown className="ml-3 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]/admin-section:rotate-180" />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-4 border-t border-border/60 bg-background/20 p-3 sm:p-4 data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+        {children}
+      </CollapsibleContent>
+    </Card>
+  </Collapsible>
+);
 
 const Stat = ({
   icon,
@@ -2239,13 +2321,13 @@ const Stat = ({
   emptyText?: string;
 }) => (
   <Card
-    className={`p-4 ${
+    className={`rounded-lg p-3 ${
       highlight
         ? "border-destructive/40 bg-destructive/5"
         : ""
     }`}
   >
-    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase text-muted-foreground">
       {icon}
       {label}
     </div>
@@ -2255,7 +2337,7 @@ const Stat = ({
         {emptyText}
       </div>
     ) : (
-      <div className="text-2xl font-semibold mt-1">
+      <div className="text-xl font-semibold mt-1">
         {value}
       </div>
     )}
