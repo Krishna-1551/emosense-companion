@@ -58,6 +58,12 @@
 
     --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
+    --avatar-light: 245 90% 88%;
+    --avatar-mid: 258 75% 74%;
+    --avatar-deep: 222 70% 58%;
+    --avatar-cheek: 320 80% 80%;
+    --avatar-ink: 236 45% 18%;
+
     --sidebar-background: 232 32% 11%;
     --sidebar-foreground: 230 30% 94%;
     --sidebar-primary: 252 83% 70%;
@@ -129,3 +135,25 @@
 }
 
 .animate-float-up { animation: float-up 0.4s var(--transition-smooth) both; }
+
+/* EmoSense avatar animations — lightweight CSS/SVG only */
+.emo-avatar .emo-body { transform-origin: 50% 60%; animation: emo-breathe 4.5s ease-in-out infinite; }
+.emo-avatar .emo-eye { fill: hsl(var(--avatar-ink)); transform-box: fill-box; transform-origin: center; animation: emo-blink 5s infinite; }
+.emo-avatar .emo-stroke { fill: none; stroke: hsl(var(--avatar-ink)); stroke-width: 3; stroke-linecap: round; }
+.emo-avatar .emo-mouth-talk { fill: hsl(var(--avatar-ink)); transform-box: fill-box; transform-origin: center; animation: emo-talk 0.32s ease-in-out infinite alternate; }
+.emo-avatar[data-state="speaking"] .emo-body { animation: emo-sway 2.4s ease-in-out infinite; }
+.emo-avatar .emo-ring { fill: none; stroke: hsl(var(--primary)); stroke-width: 2; transform-origin: center; animation: emo-ring 1.8s ease-out infinite; }
+.emo-avatar .emo-ring-2 { animation-delay: 0.9s; }
+.emo-avatar .emo-dots circle { fill: hsl(var(--avatar-light)); animation: emo-dot 1.2s ease-in-out infinite; }
+.emo-avatar .emo-dots circle:nth-child(2) { animation-delay: 0.2s; }
+.emo-avatar .emo-dots circle:nth-child(3) { animation-delay: 0.4s; }
+.emo-avatar[data-state="error"] .emo-body { animation-duration: 7s; filter: saturate(0.6); }
+@keyframes emo-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+@keyframes emo-sway { 0%,100% { transform: rotate(-1.5deg) scale(1.01); } 50% { transform: rotate(1.5deg) scale(1.03); } }
+@keyframes emo-blink { 0%,92%,100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes emo-talk { from { transform: scaleY(0.35); } to { transform: scaleY(1.15); } }
+@keyframes emo-ring { from { transform: scale(0.85); opacity: 0.7; } to { transform: scale(1.15); opacity: 0; } }
+@keyframes emo-dot { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .emo-avatar *, .emo-avatar .emo-body { animation: none !important; }
+}
