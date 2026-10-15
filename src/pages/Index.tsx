@@ -16,6 +16,9 @@ import { VoiceToggle } from "@/components/VoiceToggle";
 import { MemoryPrivacyDialog } from "@/components/MemoryPrivacyDialog";
 import { CareBridge, CareBridgeSettings } from "@/components/care/CareBridge";
 import { useSpeech } from "@/lib/speech";
+import { useBrowserTTS, useSpeechInput, type VoiceLang } from "@/lib/browserVoice";
+import { CompanionPanel, type VoiceEngine } from "@/components/CompanionPanel";
+import type { AvatarState } from "@/components/EmoSenseAvatar";
 
 
 import { AttachmentComposer, PendingAttachment } from "@/components/AttachmentComposer";
@@ -45,12 +48,35 @@ const WELCOME: Msg = {
 const Index = () => {
   const { user, loading, isAdmin, signOut } = useAuth();
   const voice = useSpeech();
+  const tts = useBrowserTTS();
+  const [voiceEngine, setVoiceEngineState] = useState<VoiceEngine>(() =>
+    (localStorage.getItem("emosense_voice_engine") as VoiceEngine) === "browser" ? "browser" : "cloud");
+  const [voiceLang, setVoiceLangState] = useState<VoiceLang>(() =>
+    localStorage.getItem("emosense_voice_lang") === "hi-IN" ? "hi-IN" : "en-IN");
+  const [voiceURI, setVoiceURIState] = useState(() => localStorage.getItem("emosense_voice_uri") ?? "");
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const anySpeaking = voice.speaking || tts.speaking;
+  const stopAllSpeech = () => { voice.stop(); tts.stop(); };
   const speakReply = (text: string, slow = false) => {
-    voice.speak(text, { slow }).catch(e => toast.error(e?.message ?? "Voice unavailable right now"));
+    stopAllSpeech();
+    setVoiceError(null);
+    const onErr = (e: any) => {
+      const msg = e?.message ?? "Voice unavailable right now";
+      setVoiceError(msg);
+      toast.error(msg);
+    };
+    if (voiceEngine === "browser" && tts.supported) {
+      tts.speak(text, { lang: voiceLang, voiceURI: voiceURI || undefined, slow }).catch(onErr);
+    } else {
+      voice.speak(text, { slow }).catch(onErr);
+    }
   };
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [replyFailed, setReplyFailed] = useState(false);
+  // Voice input fills the box for review — it is never sent automatically.
+  const mic = useSpeechInput(heard => setInput(prev => (prev.trim() ? `${prev.trim()} ${heard}` : heard).slice(0, 2000)));
   const [memoryEnabled, setMemoryEnabled] = useState(() => localStorage.getItem("emosense_adaptive_memory") === "1");
   const setMemoryPreference = (enabled: boolean) => {
     localStorage.setItem("emosense_adaptive_memory", enabled ? "1" : "0");
@@ -270,13 +296,13 @@ const Index = () => {
   // clock only starts once speech has finished.
   const [speechEndedAt, setSpeechEndedAt] = useState(0);
   useEffect(() => {
-    if (!voice.speaking) setSpeechEndedAt(Date.now());
-  }, [voice.speaking]);
+    if (!anySpeaking) setSpeechEndedAt(Date.now());
+  }, [anySpeaking]);
 
   // Short inactivity nudge — emotion-aware, only after user sends, max once per idle period
   useEffect(() => {
     if (nudgeSent) return;
-    if (voice.speaking) return; // wait for the spoken reply to finish completely
+    if (anySpeaking) return; // wait for the spoken reply to finish completely
     if (messages.length === 0) return;
     const userMsgs = messages.filter(m => m.role === "user");
     if (userMsgs.length === 0) return; // never nudge before user initiates
@@ -336,7 +362,7 @@ const Index = () => {
     const wait = Math.max(1_000, delayMs - (Date.now() - idleStart));
 
     const t = setTimeout(() => {
-      if (voice.speaking) return; // still speaking — a later rerun will handle it
+      if (anySpeaking) return; // still speaking — a later rerun will handle it
       const idleMs = Date.now() - idleStart;
       if (idleMs < delayMs!) return;
 
@@ -350,7 +376,7 @@ const Index = () => {
 
     }, wait);
     return () => clearTimeout(t);
-  }, [lastActivity, messages, nudgeSent, voice.speaking, speechEndedAt]);
+  }, [lastActivity, messages, nudgeSent, anySpeaking, speechEndedAt]);
 
 
   const send = async (override?: string) => {
@@ -360,6 +386,9 @@ const Index = () => {
     if (stillPending) { toast.message("Still analyzing attachment…"); return; }
     if (!text && ready.length === 0) return;
     if (sending) return;
+    mic.cancel();
+    stopAllSpeech();
+    setReplyFailed(false);
     if (!override) setInput("");
     setSending(true);
     setLastActivity(new Date());
@@ -406,6 +435,7 @@ const Index = () => {
       }
 
     } catch (e: any) {
+      setReplyFailed(true);
       toast.error(e.message ?? "Something went wrong");
       setMessages(m => [...m, { role: "assistant", content: "I'm having trouble responding right now. Please try again in a moment." }]);
     } finally {
@@ -422,6 +452,7 @@ const Index = () => {
   }} />;
 
   const handleNewChat = () => {
+    stopAllSpeech(); mic.cancel();
     setActiveConversationId(null);
     setMessages([WELCOME]);
     setMobileSidebarOpen(false);
@@ -587,7 +618,7 @@ const Index = () => {
                   userId={user.id}
                   conversationId={activeConversationId}
                   messages={messages.map(m => ({ role: m.role, content: m.content, emotion: m.emotion, risk_level: m.risk_level }))}
-                  onStopVoice={voice.stop}
+                  onStopVoice={stopAllSpeech}
                   onContinueTalking={() => setLastActivity(new Date())}
                 />
               </div>
@@ -596,9 +627,9 @@ const Index = () => {
                 <PrivacyBadge />
                 <VoiceToggle
                   enabled={voice.enabled}
-                  speaking={voice.speaking}
+                  speaking={anySpeaking}
                   onToggle={voice.toggle}
-                  onStop={voice.stop}
+                  onStop={stopAllSpeech}
                 />
               </div>
 
@@ -620,6 +651,48 @@ const Index = () => {
                   onChange={setPendingAttachments}
                   disabled={sending}
                 />
+              </div>
+              <div className="max-w-2xl mx-auto">
+                {(() => {
+                  const lastReply = [...messages].reverse().find(m => m.role === "assistant")?.content ?? "";
+                  const state: AvatarState = mic.listening ? "listening"
+                    : sending ? "thinking"
+                    : anySpeaking ? "speaking"
+                    : (replyFailed || voiceError || mic.error) ? "error"
+                    : "idle";
+                  return (
+                    <CompanionPanel
+                      state={state}
+                      statusDetail={state === "error" ? (mic.error ?? voiceError ?? "I couldn't reply — text chat still works.") : null}
+                      muted={!voice.enabled}
+                      onToggleMute={() => { if (voice.enabled) tts.stop(); voice.toggle(); }}
+                      canPlay={!!lastReply}
+                      onPlay={() => speakReply(lastReply)}
+                      onStop={stopAllSpeech}
+                      speaking={anySpeaking}
+                      listening={mic.listening}
+                      micSupported={mic.supported}
+                      micDisabled={sending}
+                      onMic={() => {
+                        if (mic.listening) { mic.finish(); return; }
+                        if (!mic.supported) { toast.message("Voice input isn't supported in this browser — you can keep typing."); return; }
+                        stopAllSpeech();
+                        setVoiceError(null);
+                        mic.clearError();
+                        mic.start(voiceLang);
+                      }}
+                      interim={mic.interim}
+                      lang={voiceLang}
+                      onLang={l => { setVoiceLangState(l); localStorage.setItem("emosense_voice_lang", l); setVoiceURIState(""); localStorage.removeItem("emosense_voice_uri"); }}
+                      engine={voiceEngine}
+                      onEngine={e => { stopAllSpeech(); setVoiceEngineState(e); localStorage.setItem("emosense_voice_engine", e); }}
+                      ttsSupported={tts.supported}
+                      voices={tts.voices}
+                      voiceURI={voiceURI}
+                      onVoice={u => { setVoiceURIState(u); localStorage.setItem("emosense_voice_uri", u); }}
+                    />
+                  );
+                })()}
               </div>
               <div className="max-w-2xl mx-auto flex gap-2 items-end">
                 <div className="flex-1 relative group">
