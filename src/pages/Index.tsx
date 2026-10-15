@@ -452,6 +452,7 @@ const Index = () => {
   }} />;
 
   const handleNewChat = () => {
+    stopAllSpeech(); mic.cancel();
     setActiveConversationId(null);
     setMessages([WELCOME]);
     setMobileSidebarOpen(false);
