@@ -145,9 +145,9 @@
 .chetana-avatar[data-state="error"] .chetana-img { filter: saturate(0.5) brightness(0.85); }
 .chetana-ring { position: absolute; inset: -4px; border-radius: 9999px; border: 2px solid hsl(var(--primary)); animation: chetana-ring 1.8s ease-out infinite; }
 .chetana-ring-2 { animation-delay: 0.9s; }
-.chetana-dot { width: 4px; height: 4px; border-radius: 9999px; background: hsl(var(--accent)); animation: chetana-dot 1.2s ease-in-out infinite; }
+.chetana-dot { width: 3px; height: 3px; border-radius: 9999px; background: hsl(var(--accent)); animation: chetana-dot 1.2s ease-in-out infinite; }
 .chetana-dot:nth-child(2) { animation-delay: 0.2s; } .chetana-dot:nth-child(3) { animation-delay: 0.4s; }
-.chetana-bar { width: 2px; height: 8px; border-radius: 9999px; background: hsl(var(--primary-foreground)); transform-origin: bottom; animation: chetana-bar 0.5s ease-in-out infinite alternate; }
+.chetana-bar { width: 2px; height: 6px; border-radius: 9999px; background: hsl(var(--primary-foreground)); transform-origin: bottom; animation: chetana-bar 0.5s ease-in-out infinite alternate; }
 .chetana-bar:nth-child(2) { animation-delay: 0.15s; } .chetana-bar:nth-child(3) { animation-delay: 0.3s; }
 @keyframes chetana-breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.025); } }
 @keyframes chetana-nod { 0%,100% { transform: scale(1.02) rotate(-1deg); } 50% { transform: scale(1.04) rotate(1deg); } }

@@ -701,7 +701,7 @@ const Index = () => {
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
                     placeholder="Share what's on your mind…"
-                    className="w-full bg-secondary/60 border border-border/50 rounded-full pl-5 pr-4 py-3 text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 focus:bg-secondary/80 transition-all"
+                    className="w-full bg-secondary/60 border border-border/50 rounded-full pl-5 pr-4 py-3 text-[15px] placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/40 focus:bg-secondary/80 transition-all"
                     disabled={sending}
                     maxLength={2000}
                   />
@@ -715,8 +715,8 @@ const Index = () => {
                   <Send className="w-4 h-4" />
                 </button>
               </div>
-              <p className="max-w-2xl mx-auto text-[10px] text-muted-foreground text-center">
-                EmoSense offers emotional support — it is not a medical or crisis service.
+              <p className="max-w-2xl mx-auto text-xs text-muted-foreground text-center">
+                Chetana is an AI companion, not a person or therapist. EmoSense offers emotional support — it is not a medical or crisis service.
               </p>
             </div>
           );

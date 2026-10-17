@@ -89,11 +89,11 @@ export const MessageBubble = ({ role, content, emotion, risk, time, onSpeak, mem
           </div>
         )}
         {text && (
-          <div className="text-[13.5px] leading-relaxed space-y-1">
+          <div className="text-[15px] leading-relaxed space-y-1">
             {renderInline(text)}
           </div>
         )}
-        <div className={cn("flex items-center gap-2 mt-1.5 text-[10px]",
+        <div className={cn("flex items-center gap-2 mt-1.5 text-[11px]",
           isUser ? "text-primary-foreground/70" : "text-muted-foreground")}>
           {emotion && <span className="inline-flex items-center gap-1">{emotionEmoji[emotion] ?? "✨"}<span className="capitalize">{emotion}</span></span>}
           {risk && risk !== "low" && (
