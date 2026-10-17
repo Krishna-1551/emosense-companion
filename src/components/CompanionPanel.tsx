@@ -40,7 +40,7 @@ export const CompanionPanel = (p: Props) => {
       <div className="flex-1 min-w-0 space-y-1.5">
         <p className="text-xs text-foreground truncate" aria-live="polite">
           {p.listening && p.interim ? `“${p.interim}”` : p.statusDetail ?? avatarLabel(p.state)}
-          <span className="ml-2 text-[10px] text-muted-foreground">AI companion · not a person or therapist</span>
+          <span className="ml-2 text-[10px] text-muted-foreground">Chetana · AI companion, not a person or therapist</span>
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
           <button
