@@ -43,8 +43,11 @@ export const CompanionPanel = (p: Props) => {
 
   return (
     <section aria-label="Voice companion" className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border border-border/50 bg-card/50 px-2 py-1.5">
-      <EmoSenseAvatar state={p.state} size={36} />
-      <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" aria-live="polite" title={status}>{status}</p>
+      <div className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-auto">
+        <EmoSenseAvatar state={p.state} size={36} />
+        <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" aria-live="polite" title={status}>{status}</p>
+      </div>
+
 
       <div className="flex flex-wrap items-center gap-1.5">
         <button
